@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMA Save Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root {
+  --bg:       #09090f;
+  --surface:  #111119;
+  --surface2: #181824;
+  --surface3: #1e1e2e;
+  --border:   #2a2a42;
+  --border2:  #3a3a58;
+  --p:        #b77dff;
+  --p-dim:    #7c3aed;
+  --p-glow:   rgba(183,125,255,.18);
+  --cyan:     #67e8f9;
+  --gold:     #fbbf24;
+  --red:      #f87171;
+  --green:    #86efac;
+  --text:     #e8eaf2;
+  --muted:    #8892a8;
+  --muted2:   #5a6070;
+  --radius:   8px;
+  --r2:       12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  font-family:'Exo 2',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  font-size:14px;
+  line-height:1.5;
+}
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+header{
+  display:flex;align-items:center;gap:16px;
+  padding:0 24px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+header .logo{
+  font-weight:700;font-size:16px;letter-spacing:.08em;
+  color:var(--p);text-transform:uppercase;
+}
+header .logo span{color:var(--muted);font-weight:300}
+#status{
+  margin-left:auto;font-size:12px;
+  color:var(--muted);font-family:'JetBrains Mono',monospace;
+}
+#status.ok{color:var(--green)}
+#status.err{color:var(--red)}
+
+.main-body{display:flex;overflow:hidden;height:100%}
+
+/* ── SIDEBAR ── */
+nav{
+  width:200px;min-width:200px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:16px 8px;
+  display:flex;flex-direction:column;gap:2px;
+}
+nav a{
+  display:block;padding:8px 12px;border-radius:var(--radius);
+  color:var(--muted);font-size:13px;font-weight:500;
+  text-decoration:none;cursor:pointer;transition:all .15s;
+  border:1px solid transparent;
+}
+nav a:hover{background:var(--surface2);color:var(--text)}
+nav a.active{
+  background:var(--p-glow);color:var(--p);
+  border-color:var(--p-dim);
+}
+nav .sep{
+  margin:10px 12px 4px;font-size:10px;letter-spacing:.12em;
+  color:var(--muted2);text-transform:uppercase;font-weight:600;
+}
+
+/* ── CONTENT ── */
+#content{flex:1;overflow-y:auto;padding:24px}
+.section{display:none}
+.section.active{display:block}
+
+/* ── CARDS ── */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:20px;margin-bottom:16px;
+}
+.card-title{
+  font-size:13px;font-weight:600;letter-spacing:.06em;
+  color:var(--muted);text-transform:uppercase;margin-bottom:16px;
+  padding-bottom:10px;border-bottom:1px solid var(--border);
+}
+.card-title span{color:var(--p);margin-right:6px}
+
+/* ── GRID FIELDS ── */
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.field label .tip{
+  display:inline-block;width:14px;height:14px;line-height:14px;
+  text-align:center;border-radius:50%;background:var(--surface3);
+  color:var(--cyan);font-size:9px;cursor:help;margin-left:4px;
+  font-style:normal;letter-spacing:0;text-transform:none;
+}
+input[type=text],input[type=number],select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:var(--radius);padding:7px 10px;
+  font-family:'Exo 2',sans-serif;font-size:13px;width:100%;
+  transition:border .15s;
+}
+input[type=text]:focus,input[type=number]:focus,select:focus{
+  outline:none;border-color:var(--p-dim);
+  box-shadow:0 0 0 3px var(--p-glow);
+}
+input[type=range]{
+  width:100%;accent-color:var(--p);cursor:pointer;height:20px;
+}
+.range-wrap{display:flex;gap:8px;align-items:center}
+.range-wrap input[type=range]{flex:1}
+.range-val{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--cyan);width:52px;text-align:right;flex-shrink:0;
+}
+/* color picker */
+input[type=color]{
+  width:100%;height:34px;padding:2px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--surface2);cursor:pointer;
+}
+/* toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0}
+.toggle-row label{font-size:13px;color:var(--text)}
+.toggle{position:relative;display:inline-block;width:40px;height:22px}
+.toggle input{opacity:0;width:0;height:0}
+.slider-tog{
+  position:absolute;inset:0;border-radius:11px;
+  background:var(--surface3);border:1px solid var(--border);
+  cursor:pointer;transition:.2s;
+}
+.slider-tog:before{
+  content:'';position:absolute;width:16px;height:16px;
+  border-radius:50%;background:var(--muted);left:2px;top:2px;transition:.2s;
+}
+.toggle input:checked+.slider-tog{background:var(--p-dim);border-color:var(--p)}
+.toggle input:checked+.slider-tog:before{transform:translateX(18px);background:#fff}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--surface2);
+  color:var(--text);font-family:'Exo 2',sans-serif;
+  font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;
+  text-decoration:none;
+}
+.btn:hover{background:var(--surface3);border-color:var(--border2)}
+.btn.primary{background:var(--p-dim);border-color:var(--p);color:#fff}
+.btn.primary:hover{background:var(--p);box-shadow:0 0 12px var(--p-glow)}
+.btn.success{background:#166534;border-color:var(--green);color:var(--green)}
+.btn.success:hover{background:#16a34a}
+.btn.danger{background:#7f1d1d;border-color:var(--red);color:var(--red)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ── DROP ZONE ── */
+#dropzone{
+  border:2px dashed var(--border);border-radius:var(--r2);
+  padding:48px 32px;text-align:center;
+  background:var(--surface);cursor:pointer;transition:all .2s;
+  margin-bottom:16px;
+}
+#dropzone:hover,#dropzone.over{
+  border-color:var(--p-dim);background:var(--p-glow);
+}
+#dropzone .dz-icon{font-size:40px;margin-bottom:12px}
+#dropzone .dz-title{font-size:16px;font-weight:600;margin-bottom:6px;color:var(--text)}
+#dropzone .dz-sub{font-size:12px;color:var(--muted)}
+#dropzone input{display:none}
+
+/* ── EMPLOYEES LIST ── */
+#emp-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.emp-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:12px 16px;cursor:pointer;
+  transition:all .15s;display:flex;align-items:center;gap:14px;
+}
+.emp-card:hover{border-color:var(--border2);background:var(--surface2)}
+.emp-card.active{border-color:var(--p-dim);background:var(--p-glow)}
+.emp-avatar{
+  width:40px;height:40px;border-radius:6px;
+  background:var(--surface3);border:1px solid var(--border);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:18px;color:var(--muted);
+}
+.emp-avatar img{width:100%;height:100%;object-fit:cover}
+.emp-info{flex:1;min-width:0}
+.emp-name{font-weight:600;font-size:14px;color:var(--text)}
+.emp-meta{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.emp-badge{
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;
+  background:var(--surface3);color:var(--muted);letter-spacing:.05em;
+}
+.emp-badge.hired{background:rgba(134,239,172,.12);color:var(--green)}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{
+  padding:8px 14px;font-size:12px;font-weight:600;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  letter-spacing:.04em;text-transform:uppercase;transition:all .15s;
+}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--p);border-bottom-color:var(--p)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── TRAIT GROUP (collapsible) ── */
+.tg{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.tg summary{
+  padding:10px 14px;cursor:pointer;
+  background:var(--surface2);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;font-weight:600;color:var(--muted);
+  letter-spacing:.06em;text-transform:uppercase;
+  list-style:none;user-select:none;
+}
+.tg summary::-webkit-details-marker{display:none}
+.tg summary:hover{color:var(--text)}
+.tg summary::after{content:'›';font-size:16px;color:var(--border2);transition:.2s}
+.tg[open] summary::after{transform:rotate(90deg);color:var(--p)}
+.tg[open] summary{color:var(--text);background:var(--surface3)}
+.tg .tg-body{padding:14px;background:var(--surface);
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.tg .badge{
+  font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;
+  background:var(--surface3);color:var(--muted2);margin-left:8px;
+}
+
+/* ── TRAIT FIELD ── */
+.tf{display:flex;flex-direction:column;gap:4px}
+.tf-label{
+  font-size:11px;color:var(--muted);font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tf-ctrl{display:flex;align-items:center;gap:6px}
+.tf-ctrl input[type=range]{flex:1;height:16px}
+.tf-num{
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  color:var(--cyan);width:46px;text-align:right;flex-shrink:0;
+}
+.tf-color{display:flex;gap:6px}
+.tf-color input[type=color]{flex:1;height:28px;padding:2px}
+.tf-select{width:100%}
+
+/* ── SEARCH ── */
+.search-wrap{position:relative;margin-bottom:14px}
+.search-wrap input{
+  width:100%;padding-left:32px;
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:var(--radius);
+  font-family:'Exo 2',sans-serif;font-size:13px;padding:7px 10px 7px 32px;
+}
+.search-wrap::before{
+  content:'⌕';position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--muted);font-size:16px;pointer-events:none;
+}
+
+/* ── AGENCIES ── */
+.ag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.ag-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:16px;transition:all .15s;
+}
+.ag-card.unlocked{border-color:#166534;background:rgba(134,239,172,.05)}
+.ag-card .ag-name{font-weight:600;font-size:14px;margin-bottom:4px}
+.ag-card .ag-status{font-size:11px;color:var(--muted)}
+.ag-card.unlocked .ag-status{color:var(--green)}
+
+/* ── NOTIFICATIONS ── */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none;
+}
+.toast-msg{
+  padding:10px 16px;border-radius:var(--r2);font-size:13px;
+  max-width:320px;box-shadow:0 4px 16px rgba(0,0,0,.5);
+  animation:toastIn .2s ease;
+}
+.toast-msg.ok{background:#14532d;border:1px solid var(--green);color:var(--green)}
+.toast-msg.err{background:#7f1d1d;border:1px solid var(--red);color:var(--red)}
+.toast-msg.info{background:var(--surface3);border:1px solid var(--border2);color:var(--text)}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── MISC ── */
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;
+  background:var(--surface3);color:var(--muted);letter-spacing:.05em;margin-left:6px}
+.tag.new{background:rgba(183,125,255,.15);color:var(--p)}
+.section-header{
+  margin-bottom:20px;padding-bottom:14px;
+  border-bottom:1px solid var(--border);
+}
+.section-header h2{font-size:20px;font-weight:700;color:var(--text)}
+.section-header p{font-size:12px;color:var(--muted);margin-top:4px}
+.fitness-bar{height:4px;border-radius:2px;background:var(--surface3);margin-top:4px}
+.fitness-fill{height:100%;border-radius:2px;background:var(--p);transition:.3s}
+.fitness-fill.good{background:var(--green)}
+.fitness-fill.med{background:var(--gold)}
+.fitness-fill.low{background:var(--red)}
+.hint{font-size:11px;color:var(--muted);font-style:italic;margin-top:6px}
+.no-data{
+  text-align:center;padding:48px;color:var(--muted);
+  border:1px dashed var(--border);border-radius:var(--r2);
+}
+
+/* ── PNG SECTION ── */
+.png-box{
+  border:2px dashed var(--border);border-radius:var(--r2);
+  padding:32px;text-align:center;
+  background:var(--surface);cursor:pointer;transition:all .2s;
+}
+.png-box:hover,.png-box.over{border-color:var(--cyan);background:rgba(103,232,249,.05)}
+.png-preview{
+  max-width:180px;max-height:180px;
+  border-radius:6px;border:1px solid var(--border);
+  margin:12px auto;display:block;
+}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+<div id="app">
+<!-- HEADER -->
+<header>
+  <div class="logo">SMA <span>Save Editor</span></div>
+  <span id="status">Nenhum arquivo carregado</span>
+  <div class="btn-row" style="margin-left:16px">
+    <label class="btn" for="file-input" id="btn-open">📂 Abrir .sav</label>
+    <input type="file" id="file-input" accept=".sav" style="display:none">
+    <button class="btn success" id="btn-save" onclick="downloadSave()" style="display:none">💾 Salvar .sav</button>
+  </div>
+</header>
+
+<div class="main-body">
+<!-- SIDEBAR -->
+<nav id="nav">
+  <span class="sep">Arquivo</span>
+  <a onclick="showSection('inicio')" class="active" data-sec="inicio">🏠 Início</a>
+  <span class="sep">Jogador</span>
+  <a onclick="showSection('geral')" data-sec="geral">⚙️ Geral</a>
+  <a onclick="showSection('jogador')" data-sec="jogador">🎮 Personagem</a>
+  <span class="sep">Agência</span>
+  <a onclick="showSection('funcionarias')" data-sec="funcionarias">👩 Funcionárias</a>
+  <a onclick="showSection('agencias')" data-sec="agencias">🏢 Agências</a>
+  <span class="sep">Ferramentas</span>
+  <a onclick="showSection('png')" data-sec="png">🖼️ Import/Export PNG</a>
+  <a onclick="showSection('tempo')" data-sec="tempo">🕐 Tempo do Jogo</a>
+</nav>
+
+<!-- CONTENT -->
+<div id="content">
+
+<!-- ══ INÍCIO ══ -->
+<div class="section active" id="sec-inicio">
+  <div class="section-header">
+    <h2>SMA Save Editor <span class="tag new">v1</span></h2>
+    <p>Editor de save para Some Modeling Agency — compatível com a versão v1 do jogo</p>
+  </div>
+  <div id="dropzone" onclick="document.getElementById('file-input').click()"
+    ondrop="handleDrop(event)" ondragover="e=>{e.preventDefault();this.classList.add('over')}"
+    ondragleave="this.classList.remove('over')">
+    <div class="dz-icon">💾</div>
+    <div class="dz-title">Arraste o arquivo Default.sav aqui</div>
+    <div class="dz-sub">
+      Ou clique para selecionar<br>
+      <span style="color:var(--muted2);font-family:'JetBrains Mono',monospace;font-size:10px">
+        Documentos\TValle Games\Some Modeling Agency\Save\v1\Default.sav
+      </span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>ℹ</span>Sobre o editor</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.8">
+      <b style="color:var(--text)">Campos editáveis:</b> Personagem principal (corpo, prazer, finanças, emoções),
+      funcionárias contratadas (dados básicos, aparência, personalidade), agências desbloqueadas,
+      tempo do jogo, nome do usuário.<br><br>
+      <b style="color:var(--text)">PNG Import/Export:</b> Importe talentos de arquivos .png compartilhados
+      ou exporte suas funcionárias para compartilhar.<br><br>
+      <b style="color:var(--red)">⚠ Faça backup do seu save antes de editar!</b>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GERAL ══ -->
+<div class="section" id="sec-geral">
+  <div class="section-header">
+    <h2>⚙️ Configurações Gerais</h2>
+    <p>Nome do usuário e nível do escritório</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>👤</span>Identidade</div>
+    <div class="fields">
+      <div class="field">
+        <label>Nome de usuário
+          <i class="tip" title="Seu nome no jogo. Pode ser diferente do nome do personagem.">?</i>
+        </label>
+        <input type="text" id="f-username" oninput="saveUsername(this.value)" placeholder="Seu nome">
+      </div>
+      <div class="field">
+        <label>Nível do Escritório
+          <i class="tip" title="Nível atual do seu escritório/agência. Afeta o que está disponível no jogo.">?</i>
+        </label>
+        <input type="number" id="f-officelvl" min="0" max="99" oninput="saveOfficeLvl(this.value)">
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>👤</span>Nome do Personagem Principal</div>
+    <div class="fields">
+      <div class="field">
+        <label>Primeiro Nome</label>
+        <input type="text" id="f-pnome" oninput="savePlayerName('Nombre', this.value)">
+      </div>
+      <div class="field">
+        <label>Sobrenome</label>
+        <input type="text" id="f-psobrenome" oninput="savePlayerName('Apellido', this.value)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ JOGADOR ══ -->
+<div class="section" id="sec-jogador">
+  <div class="section-header">
+    <h2>🎮 Personagem Principal</h2>
+    <p>Atributos físicos, prazer, dinheiro e emoções do seu personagem</p>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('jogador','corpo')">💪 Corpo</div>
+    <div class="tab" onclick="switchTab('jogador','prazer')">❤️ Prazer</div>
+    <div class="tab" onclick="switchTab('jogador','financas')">💰 Finanças</div>
+    <div class="tab" onclick="switchTab('jogador','emocoes')">😶 Emoções</div>
+  </div>
+  <!-- TAB: CORPO -->
+  <div class="tab-panel active" data-tab="jogador-corpo">
+    <div class="card">
+      <div class="card-title"><span>📏</span>Proporções Físicas</div>
+      <div class="fields">
+        <div class="field">
+          <label>Gordura Corporal (Fat)
+            <i class="tip" title="0 = sem gordura, 100 = muito gordo">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Fat" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Fat">0</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Magreza (Thin)
+            <i class="tip" title="0 = robusto, 100 = muito magro">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Thin" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Thin">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Músculo (Muscle)
+            <i class="tip" title="0 = sem músculo, 100 = muito musculoso">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Muscle" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Muscle">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Aparência de Idade (Old)
+            <i class="tip" title="0 = jovem, 100 = velho">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Old" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Old">0</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Altura (Height)
+            <i class="tip" title="Valor 54 ≈ 198 cm no jogo. Escala não-linear.">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Height" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Height">54</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Package
+            <i class="tip" title="Tamanho do pacote genital (conjunto visual)">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="Package" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-Package">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Comprimento (DickSize)
+            <i class="tip" title="Valor 60 ≈ 18 cm no jogo">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="DickSize" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-DickSize">60</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Circunferência (DickGirth)
+            <i class="tip" title="Valor 25 ≈ 3.5 cm de circunferência no jogo">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="DickGirth" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-DickGirth">25</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Rigidez (DickStiffness)
+            <i class="tip" title="0 = flácido, 100 = totalmente rígido">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="DickStiffness" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-DickStiffness">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Conjunto
+            <i class="tip" title="Conjunto de aparência selecionado (valor inteiro)">?</i>
+          </label>
+          <input type="number" min="0" max="10" id="f-Conjunto" oninput="saveStatDirect('Conjunto', this.value)">
+        </div>
+      </div>
+    </div>
+    <p class="hint">💡 Dica: Alterações aqui afetam apenas o estado atual. Os valores em "Stats Iniciais" (em MainPlayer > InitialStats) são salvos separadamente para reset — o editor os sincroniza automaticamente ao salvar.</p>
+  </div>
+  <!-- TAB: PRAZER -->
+  <div class="tab-panel" data-tab="jogador-prazer">
+    <div class="card">
+      <div class="card-title"><span>❤️</span>Sistema de Prazer</div>
+      <div class="fields">
+        <div class="field">
+          <label>Ganho de Prazer (PleasureGain)
+            <i class="tip" title="Velocidade com que o prazer aumenta durante interações">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="0.1" data-stat="PleasureGain" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-PleasureGain">5</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exp. Interativa (PleasureInterExp)
+            <i class="tip" title="Experiência de prazer acumulada em interações">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="0.1" data-stat="PleasureInterExp" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-PleasureInterExp">5</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Inc. Interativo (PleasureInterInc)
+            <i class="tip" title="Incremento de prazer por interação">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="0.1" data-stat="PleasureInterInc" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-PleasureInterInc">5</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Valor Máximo (PleasureMaxValue)
+            <i class="tip" title="Prazer máximo possível (100 = máximo padrão)">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="200" step="1" data-stat="PleasureMaxValue" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-PleasureMaxValue">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Contrações (EyaculacionContraciones)
+            <i class="tip" title="Intensidade das contrações na ejaculação">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="EyaculacionContraciones" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-EyaculacionContraciones">100</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Quantidade (EyaculacionCantidad)
+            <i class="tip" title="Volume de ejaculação">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="0" max="100" step="1" data-stat="EyaculacionCantidad" oninput="saveStatRange(this)">
+            <span class="range-val" id="rv-EyaculacionCantidad">100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- TAB: FINANÇAS -->
+  <div class="tab-panel" data-tab="jogador-financas">
+    <div class="card">
+      <div class="card-title"><span>💰</span>Carteira</div>
+      <div class="fields">
+        <div class="field">
+          <label>Dinheiro Atual (fiat)
+            <i class="tip" title="Saldo atual da carteira do jogador">?</i>
+          </label>
+          <input type="number" id="f-fiat" min="0" step="1000" style="font-family:'JetBrains Mono',monospace"
+            oninput="saveWallet(this.value)">
+        </div>
+        <div class="field">
+          <label>Dinheiro Inicial (Fiat)
+            <i class="tip" title="Valor inicial salvo para reset/referência. Normalmente igual ao atual.">?</i>
+          </label>
+          <input type="number" id="f-fiat-init" min="0" step="1000" style="font-family:'JetBrains Mono',monospace"
+            oninput="saveInitialFiat(this.value)">
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn" onclick="setMoney(1000000)">💸 1M</button>
+        <button class="btn" onclick="setMoney(1000000000)">💸 1B</button>
+        <button class="btn" onclick="setMoney(999999999999)">💸 Máximo</button>
+      </div>
+    </div>
+  </div>
+  <!-- TAB: EMOÇÕES -->
+  <div class="tab-panel" data-tab="jogador-emocoes">
+    <div class="card">
+      <div class="card-title"><span>😶</span>Modificador de Emoções (EmotionGainMod)</div>
+      <div class="hint" style="margin-bottom:14px">
+        Este buff permanente modifica o ganho de emoções negativas.<br>
+        <b>gainMod = 0.0</b> neutraliza completamente os ganhos negativos.
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label>gainMod
+            <i class="tip" title="Multiplicador de ganho emocional. 0.0 = neutraliza emoções negativas. 1.0 = normal.">?</i>
+          </label>
+          <div class="range-wrap">
+            <input type="range" min="-5" max="5" step="0.01" id="sl-gainMod" oninput="saveEmotionMod('gainMod', parseFloat(this.value))">
+            <span class="range-val" id="rv-gainMod">0.0</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>emo (emoção afetada)
+            <i class="tip" title="Código da emoção afetada pelo buff. 10 = padrão.">?</i>
+          </label>
+          <input type="number" id="f-emo" min="0" max="100" oninput="saveEmotionMod('emo', parseInt(this.value))">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FUNCIONÁRIAS ══ -->
+<div class="section" id="sec-funcionarias">
+  <div class="section-header">
+    <h2>👩 Funcionárias</h2>
+    <p>Gerencie as funcionárias contratadas na sua agência</p>
+  </div>
+  <div id="emp-list-container">
+    <div class="no-data">Carregue um save para ver as funcionárias</div>
+  </div>
+  <div id="emp-detail" style="display:none">
+    <hr class="divider">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('emp','dados')">📋 Dados</div>
+      <div class="tab" onclick="switchTab('emp','aparencia')">👤 Aparência</div>
+      <div class="tab" onclick="switchTab('emp','personalidade')">🧠 Personalidade</div>
+    </div>
+    <!-- TAB: DADOS -->
+    <div class="tab-panel active" data-tab="emp-dados">
+      <div class="card">
+        <div class="card-title"><span>📋</span>Informações Básicas</div>
+        <div class="fields">
+          <div class="field">
+            <label>Primeiro Nome</label>
+            <input type="text" id="ef-nome" oninput="saveEmpName('Nombre', this.value)">
+          </div>
+          <div class="field">
+            <label>Sobrenome</label>
+            <input type="text" id="ef-sobrenome" oninput="saveEmpName('Apellido', this.value)">
+          </div>
+          <div class="field">
+            <label>Salário (por sessão)
+              <i class="tip" title="Salário fixo pago por sessão de trabalho">?</i>
+            </label>
+            <input type="number" min="0" step="100" id="ef-salary" oninput="saveEmpHired('Salary', this.value)">
+          </div>
+          <div class="field">
+            <label>Comissão (%)
+              <i class="tip" title="Percentual de comissão sobre os ganhos. 0-100.">?</i>
+            </label>
+            <input type="number" min="0" max="100" step="1" id="ef-commission" oninput="saveEmpHired('Commission', this.value)">
+          </div>
+        </div>
+      </div>
+      <div class="card" id="emp-progress-card">
+        <div class="card-title"><span>📈</span>Progresso no Jogo</div>
+        <div id="emp-memorias-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>📊</span>Fitness da Aparência</div>
+        <div id="emp-fitness-ap" class="fields"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>📊</span>Fitness da Personalidade</div>
+        <div id="emp-fitness-per" class="fields"></div>
+      </div>
+    </div>
+    <!-- TAB: APARÊNCIA -->
+    <div class="tab-panel" data-tab="emp-aparencia">
+      <div class="search-wrap">
+        <input type="text" id="ap-search" placeholder="Buscar trait de aparência..." oninput="filterTraits('ap', this.value)">
+      </div>
+      <div id="ap-traits"></div>
+    </div>
+    <!-- TAB: PERSONALIDADE -->
+    <div class="tab-panel" data-tab="emp-personalidade">
+      <div class="search-wrap">
+        <input type="text" id="per-search" placeholder="Buscar trait de personalidade..." oninput="filterTraits('per', this.value)">
+      </div>
+      <div id="per-traits"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AGÊNCIAS ══ -->
+<div class="section" id="sec-agencias">
+  <div class="section-header">
+    <h2>🏢 Agências Disponíveis</h2>
+    <p>Desbloquear agências abre novos tipos de trabalho para suas funcionárias</p>
+  </div>
+  <div id="ag-container">
+    <div class="no-data">Carregue um save para ver as agências</div>
+  </div>
+</div>
+
+<!-- ══ PNG ══ -->
+<div class="section" id="sec-png">
+  <div class="section-header">
+    <h2>🖼️ Import/Export de Talentos (PNG)</h2>
+    <p>Importe personagens de arquivos .png ou exporte suas funcionárias para compartilhar</p>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card">
+      <div class="card-title"><span>📥</span>Importar PNG</div>
+      <div class="png-box" id="png-import-box"
+        onclick="document.getElementById('png-file').click()"
+        ondrop="handlePNGDrop(event)" ondragover="e=>{e.preventDefault();this.classList.add('over')}"
+        ondragleave="this.classList.remove('over')">
+        <input type="file" id="png-file" accept=".png" style="display:none" onchange="loadPNG(this.files[0])">
+        <div style="font-size:32px">🖼️</div>
+        <div style="font-weight:600;margin:8px 0">Arraste ou clique para importar</div>
+        <div style="font-size:11px;color:var(--muted)">Arquivo .png exportado pelo jogo</div>
+      </div>
+      <div id="png-import-result" style="display:none;margin-top:14px">
+        <img id="png-preview" class="png-preview" alt="Preview">
+        <div id="png-info" style="font-size:12px;color:var(--muted);text-align:center;margin:8px 0"></div>
+        <div class="btn-row" style="justify-content:center">
+          <button class="btn primary" id="btn-import-apply" onclick="applyPNGImport()">✅ Adicionar ao Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>📤</span>Exportar Funcionária</div>
+      <div id="png-export-container">
+        <div class="no-data">Selecione uma funcionária na aba Funcionárias para exportar</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-title"><span>ℹ</span>Como funciona o PNG</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.8">
+      O jogo salva personagens como imagens .png. Além da foto visual da personagem,
+      o arquivo contém dados embutidos com toda a aparência, traços de personalidade
+      e atributos da personagem.<br><br>
+      Para importar: use o botão <b style="color:var(--text)">Importar Talentos</b> no jogo após adicionar via este editor,
+      ou use diretamente o modo de "Entrevista Única" com o PNG exportado.
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEMPO ══ -->
+<div class="section" id="sec-tempo">
+  <div class="section-header">
+    <h2>🕐 Tempo do Jogo</h2>
+    <p>Data e hora atuais no universo do jogo (2049)</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>📅</span>Data e Hora Atual</div>
+    <div class="fields">
+      <div class="field"><label>Ano</label>
+        <input type="number" id="t-Year" min="2000" max="2100" oninput="saveTime('Year', this.value)">
+      </div>
+      <div class="field"><label>Mês (1-12)</label>
+        <input type="number" id="t-Mes" min="1" max="12" oninput="saveTime('Mes', this.value)">
+      </div>
+      <div class="field"><label>Dia (1-31)</label>
+        <input type="number" id="t-Day" min="1" max="31" oninput="saveTime('Day', this.value)">
+      </div>
+      <div class="field"><label>Hora (0-23)</label>
+        <input type="number" id="t-Hora" min="0" max="23" oninput="saveTime('Hora', this.value)">
+      </div>
+      <div class="field"><label>Minutos</label>
+        <input type="number" id="t-Minutos" min="0" max="59" oninput="saveTime('Minutos', this.value)">
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>📅</span>Data e Hora Inicial</div>
+    <div class="fields">
+      <div class="field"><label>Ano Inicial</label>
+        <input type="number" id="t-InitialYear" min="2000" max="2100" oninput="saveTime('InitialYear', this.value)">
+      </div>
+      <div class="field"><label>Mês Inicial</label>
+        <input type="number" id="t-InitialMes" min="1" max="12" oninput="saveTime('InitialMes', this.value)">
+      </div>
+      <div class="field"><label>Dia Inicial</label>
+        <input type="number" id="t-InitialDay" min="1" max="31" oninput="saveTime('InitialDay', this.value)">
+      </div>
+      <div class="field"><label>Hora Inicial</label>
+        <input type="number" id="t-InitialHora" min="0" max="23" oninput="saveTime('InitialHora', this.value)">
+      </div>
+      <div class="field"><label>Minutos Iniciais</label>
+        <input type="number" id="t-InitialMinutos" min="0" max="59" oninput="saveTime('InitialMinutos', this.value)">
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main-body -->
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let saveData = null;
+let selectedEmpId = null;
+let pngImportData = null;  // parsed data from imported PNG
+let pngImportBytes = null; // raw PNG bytes (header only, before marker)
+
+// ══════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════
+function findChild(node, id) {
+  return node.m_children.find(c => c.m_id === id);
+}
+function getVal(node, key) {
+  const i = node.m_data.keys.indexOf(key);
+  return i >= 0 ? node.m_data.values[i] : null;
+}
+function setVal(node, key, value) {
+  const i = node.m_data.keys.indexOf(key);
+  if (i >= 0) node.m_data.values[i] = String(value);
+}
+function getMod(trait, idx=0) {
+  const i = trait.m_data.keys.indexOf('Mods');
+  if (i < 0) return 0;
+  try { return JSON.parse(trait.m_data.values[i]).c[idx] ?? 0; } catch { return 0; }
+}
+function setMod(trait, value, idx=0) {
+  const i = trait.m_data.keys.indexOf('Mods');
+  if (i < 0) return;
+  try {
+    const m = JSON.parse(trait.m_data.values[i]);
+    m.c[idx] = parseFloat(value);
+    trait.m_data.values[i] = JSON.stringify(m);
+  } catch {}
+}
+function getMods(trait) {
+  const i = trait.m_data.keys.indexOf('Mods');
+  if (i < 0) return [0];
+  try { return JSON.parse(trait.m_data.values[i]).c; } catch { return [0]; }
+}
+
+// Navigation shortcuts
+function getRoot() { return saveData; }
+function getTimeNode() { return findChild(saveData, 'Time'); }
+function getNPCContainer() { return findChild(saveData, 'NPC'); }
+function getPlayerNPC() { return findChild(getNPCContainer(), '00000001-0000-0000-0000-000000000000'); }
+function getMainPlayer() { return findChild(getNPCContainer(), 'MainPlayer'); }
+function getPlayerStats() {
+  const mem = findChild(getPlayerNPC(), 'Memorias');
+  return findChild(mem, 'Stats');
+}
+function getPlayerWallet() {
+  const mem = findChild(getPlayerNPC(), 'Memorias');
+  return findChild(mem, 'wallet');
+}
+function getPlayerBuff() {
+  const mem = findChild(getPlayerNPC(), 'Memorias');
+  const buff = findChild(mem, 'Buff');
+  return findChild(buff, 'Tvalle.Buff.EmotionGainMod');
+}
+function getEmployees() {
+  const npc = getNPCContainer();
+  return npc.m_children.filter(c =>
+    c.m_id !== '00000001-0000-0000-0000-000000000000' &&
+    c.m_id !== 'MainPlayer'
+  );
+}
+function getEmployee(id) { return findChild(getNPCContainer(), id); }
+function getEmpApariencia(empId) {
+  const apRoot = findChild(saveData, 'AparienciaFisica');
+  const emp = getEmployee(empId);
+  const apId = getVal(emp, 'AparienciaFisica');
+  return apId ? findChild(apRoot, apId) : null;
+}
+function getEmpPersonalidad(empId) {
+  const perRoot = findChild(saveData, 'Personalidad');
+  const emp = getEmployee(empId);
+  const perId = getVal(emp, 'Personalidad');
+  return perId ? findChild(perRoot, perId) : null;
+}
+function getHiredNode(empId) {
+  const hired = findChild(saveData, 'Hired');
+  return hired ? findChild(hired, empId) : null;
+}
+function getAgencias() {
+  return findChild(saveData, 'Agencias');
+}
+
+// ══════════════════════════════════════════
+// SAVE / LOAD
+// ══════════════════════════════════════════
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadSaveFile(e.target.files[0]);
+});
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadSaveFile(file);
+}
+
+async function loadSaveFile(file) {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let text;
+    // Try GZIP first
+    try {
+      text = pako.ungzip(bytes, {to:'string'});
+    } catch {
+      // Maybe it's raw JSON (edge case)
+      text = new TextDecoder().decode(bytes);
+    }
+    saveData = JSON.parse(text);
+    setStatus(`✅ ${file.name} carregado`, 'ok');
+    document.getElementById('btn-save').style.display = '';
+    renderAll();
+    showSection('geral');
+    toast('Save carregado com sucesso!', 'ok');
+  } catch(err) {
+    setStatus('❌ Erro ao carregar', 'err');
+    toast('Erro ao carregar: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+function downloadSave() {
+  if (!saveData) return;
+  try {
+    const json = JSON.stringify(saveData);  // no spaces - single line
+    const compressed = pako.gzip(json);
+    const blob = new Blob([compressed], {type:'application/octet-stream'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Default.sav';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Save baixado! Substitua o arquivo original.', 'ok');
+  } catch(err) {
+    toast('Erro ao salvar: ' + err.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════
+function renderAll() {
+  if (!saveData) return;
+  renderGeral();
+  renderJogador();
+  renderFuncionarias();
+  renderAgencias();
+  renderTempo();
+}
+
+// ══════════════════════════════════════════
+// GERAL
+// ══════════════════════════════════════════
+function renderGeral() {
+  const un = findChild(saveData, 'UserName');
+  if (un) el('f-username').value = getVal(un, 'UserName') || '';
+  const root = getRoot();
+  el('f-officelvl').value = getVal(root, 'OfficeLvl') || '1';
+  const player = getPlayerNPC();
+  if (player) {
+    el('f-pnome').value = getVal(player, 'Nombre') || '';
+    el('f-psobrenome').value = getVal(player, 'Apellido') || '';
+  }
+}
+function saveUsername(v) {
+  if (!saveData) return;
+  const un = findChild(saveData, 'UserName');
+  if (un) setVal(un, 'UserName', v);
+}
+function saveOfficeLvl(v) {
+  if (!saveData) return;
+  setVal(getRoot(), 'OfficeLvl', v);
+}
+function savePlayerName(key, v) {
+  if (!saveData) return;
+  const p = getPlayerNPC();
+  if (p) setVal(p, key, v);
+}
+
+// ══════════════════════════════════════════
+// JOGADOR
+// ══════════════════════════════════════════
+const STAT_KEYS = ['Fat','Thin','Muscle','Old','Package','S','V','H','Height',
+  'DickSize','DickGirth','DickStiffness','Conjunto',
+  'PleasureGain','PleasureInterExp','PleasureInterInc','PleasureMaxValue',
+  'EyaculacionContraciones','EyaculacionCantidad'];
+
+function renderJogador() {
+  const stats = getPlayerStats();
+  if (!stats) return;
+  STAT_KEYS.forEach(k => {
+    const v = getVal(stats, k);
+    if (v == null) return;
+    const sl = document.querySelector(`[data-stat="${k}"]`);
+    if (sl) { sl.value = v; updateRangeVal(sl); }
+    const ni = el(`f-${k}`);
+    if (ni) ni.value = v;
+  });
+  // Wallet
+  const wallet = getPlayerWallet();
+  if (wallet) {
+    el('f-fiat').value = getVal(wallet, 'fiat') || '0';
+    const init = findChild(getMainPlayer(), 'InitialStats');
+    if (init) el('f-fiat-init').value = getVal(init, 'Fiat') || '0';
+  }
+  // Emotion buff
+  const buff = getPlayerBuff();
+  if (buff) {
+    const ea = getVal(buff, 'efectoArgumento');
+    if (ea) {
+      try {
+        const obj = JSON.parse(ea);
+        el('sl-gainMod').value = obj.gainMod ?? 0;
+        el('rv-gainMod').textContent = (obj.gainMod ?? 0).toFixed(2);
+        el('f-emo').value = obj.emo ?? 10;
+      } catch {}
+    }
+  }
+}
+
+function saveStatRange(input) {
+  if (!saveData) return;
+  const key = input.dataset.stat;
+  const v = input.value;
+  updateRangeVal(input);
+  const stats = getPlayerStats();
+  if (stats) setVal(stats, key, v);
+  // Sync InitialStats
+  const init = findChild(getMainPlayer(), 'InitialStats');
+  const initMap = {Fat:'Fat',Thin:'Thin',Muscle:'Muscle',Old:'Old',
+    Height:'Height',DickSize:'DickSize',DickGirth:'DickGirth',
+    Package:'Package',Conjunto:'Conjunto',S:'S',V:'V',H:'H'};
+  if (init && initMap[key]) setVal(init, initMap[key], v);
+}
+function saveStatDirect(key, v) {
+  if (!saveData) return;
+  setVal(getPlayerStats(), key, v);
+  const init = findChild(getMainPlayer(), 'InitialStats');
+  if (init) setVal(init, key, v);
+}
+function saveWallet(v) {
+  if (!saveData) return;
+  setVal(getPlayerWallet(), 'fiat', v);
+}
+function saveInitialFiat(v) {
+  if (!saveData) return;
+  const init = findChild(getMainPlayer(), 'InitialStats');
+  if (init) setVal(init, 'Fiat', v);
+}
+function setMoney(amount) {
+  if (!saveData) return;
+  el('f-fiat').value = amount;
+  el('f-fiat-init').value = amount;
+  saveWallet(amount);
+  saveInitialFiat(amount);
+}
+function saveEmotionMod(key, v) {
+  if (!saveData) return;
+  const buff = getPlayerBuff();
+  if (!buff) return;
+  const ea = getVal(buff, 'efectoArgumento');
+  try {
+    const obj = JSON.parse(ea);
+    obj[key] = v;
+    setVal(buff, 'efectoArgumento', JSON.stringify(obj));
+    if (key === 'gainMod') el('rv-gainMod').textContent = v.toFixed(2);
+  } catch {}
+}
+
+function updateRangeVal(input) {
+  const key = input.dataset.stat;
+  const rv = el(`rv-${key}`);
+  if (rv) rv.textContent = parseFloat(input.value).toFixed(1).replace(/\.0$/, '');
+}
+
+// ══════════════════════════════════════════
+// FUNCIONÁRIAS
+// ══════════════════════════════════════════
+const MEM_LABELS = {
+  TalkedAboutModeling: 'Conversou sobre modelagem',
+  ModelingPics: 'Fotos básicas desbloqueadas',
+  TalkedAboutPicsToPoses: 'Conversou sobre poses',
+  ModelingPoses: 'Poses desbloqueadas',
+  TalkedAboutPosesToUndies: 'Conversou sobre lingerie',
+  ModelingUndress: 'Lingerie desbloqueada',
+  TalkedAboutUndiesToEro: 'Conversou sobre explícito',
+  ModelingEro: 'Explícito desbloqueado'
+};
+
+const AG_NAMES = {
+  camturbateHardcore: '🎥 CamTurbate Hardcore',
+  escort: '💼 Escort',
+  yellowFever: '🌸 Yellow Fever',
+  asianModels: '🌏 Asian Models',
+  hiEndModels: '💎 Hi-End Models'
+};
+
+function renderFuncionarias() {
+  const emps = getEmployees();
+  const container = el('emp-list-container');
+  if (!emps.length) {
+    container.innerHTML = '<div class="no-data">Nenhuma funcionária contratada neste save</div>';
+    el('emp-detail').style.display = 'none';
+    return;
+  }
+  let html = '<div id="emp-list">';
+  emps.forEach(emp => {
+    const nome = getVal(emp, 'Nombre') || '??';
+    const sobrenome = getVal(emp, 'Apellido') || '';
+    const portrait = getVal(emp, 'Portrait');
+    const hiredNode = getHiredNode(emp.m_id);
+    const salary = hiredNode ? getVal(hiredNode, 'Salary') : '?';
+    const isHired = hiredNode != null;
+    const apNode = getEmpApariencia(emp.m_id);
+    const nivel = apNode ? getVal(apNode, 'Nivel') : '?';
+    const imgHTML = portrait
+      ? `<img src="data:image/jpeg;base64,${portrait}" alt="${nome}">`
+      : '👤';
+    html += `<div class="emp-card ${selectedEmpId === emp.m_id ? 'active' : ''}"
+      onclick="selectEmployee('${emp.m_id}')">
+      <div class="emp-avatar">${imgHTML}</div>
+      <div class="emp-info">
+        <div class="emp-name">${nome} ${sobrenome}</div>
+        <div class="emp-meta">Nível ${nivel} • Salário: ${Number(salary||0).toLocaleString('pt-BR')}</div>
+      </div>
+      <span class="emp-badge ${isHired ? 'hired' : ''}">${isHired ? '✓ CONTRATADA' : 'NPC'}</span>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function selectEmployee(id) {
+  selectedEmpId = id;
+  renderFuncionarias();
+  renderEmpDetail(id);
+  el('emp-detail').style.display = 'block';
+  // Reset to dados tab
+  switchTab('emp', 'dados');
+  // Update export panel
+  renderPNGExport(id);
+}
+
+function renderEmpDetail(id) {
+  const emp = getEmployee(id);
+  if (!emp) return;
+  // Basic fields
+  el('ef-nome').value = getVal(emp, 'Nombre') || '';
+  el('ef-sobrenome').value = getVal(emp, 'Apellido') || '';
+  const hiredNode = getHiredNode(id);
+  el('ef-salary').value = hiredNode ? getVal(hiredNode, 'Salary') || '0' : '0';
+  el('ef-commission').value = hiredNode ? getVal(hiredNode, 'Commission') || '0' : '0';
+
+  // Memorias progress
+  const memNode = findChild(emp, 'Memorias');
+  let memHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">';
+  if (memNode) {
+    Object.entries(MEM_LABELS).forEach(([k, label]) => {
+      const v = getVal(memNode, k);
+      const checked = v === 'True';
+      memHtml += `<div class="toggle-row">
+        <label>${label}</label>
+        <label class="toggle">
+          <input type="checkbox" ${checked ? 'checked' : ''}
+            onchange="saveEmpMemoria('${id}','${k}', this.checked)">
+          <span class="slider-tog"></span>
+        </label>
+      </div>`;
+    });
+  }
+  memHtml += '</div>';
+  el('emp-memorias-list').innerHTML = memHtml;
+
+  // Fitness appearance
+  const ap = getEmpApariencia(id);
+  const AP_FITNESS = ['Fitness_height','Fitness_body','Fitness_skin','Fitness_hair',
+    'Fitness_head','Fitness_face','Fitness_eyes','Fitness_nose','Fitness_mouth',
+    'Fitness_breast','Fitness_arms','Fitness_waist_hip','Fitness_crotch',
+    'Fitness_buttocks','Fitness_legs'];
+  const AP_LABELS = {Fitness_height:'Altura',Fitness_body:'Corpo',Fitness_skin:'Pele',
+    Fitness_hair:'Cabelo',Fitness_head:'Cabeça',Fitness_face:'Rosto',
+    Fitness_eyes:'Olhos',Fitness_nose:'Nariz',Fitness_mouth:'Boca',
+    Fitness_breast:'Seios',Fitness_arms:'Braços',Fitness_waist_hip:'Cintura/Quadril',
+    Fitness_crotch:'Virilha',Fitness_buttocks:'Glúteos',Fitness_legs:'Pernas'};
+  let apFitnessHtml = '';
+  if (ap) {
+    AP_FITNESS.forEach(k => {
+      const v = parseFloat(getVal(ap, k) || '0');
+      const pct = Math.round(v * 100);
+      const cls = pct >= 70 ? 'good' : pct >= 40 ? 'med' : 'low';
+      apFitnessHtml += `<div>
+        <div style="display:flex;justify-content:space-between;font-size:11px">
+          <span style="color:var(--muted)">${AP_LABELS[k]||k}</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">${pct}%</span>
+        </div>
+        <div class="fitness-bar"><div class="fitness-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>`;
+    });
+  }
+  el('emp-fitness-ap').innerHTML = apFitnessHtml || '<span style="color:var(--muted)">Sem dados</span>';
+
+  // Fitness personality
+  const per = getEmpPersonalidad(id);
+  const PER_FITNESS = ['Fitness_angerManagement','Fitness_painTolerance','Fitness_slutness',
+    'Fitness_exhibitionism','Fitness_servicing','Fitness_summarizing'];
+  const PER_LABELS = {Fitness_angerManagement:'Controle de Raiva',Fitness_painTolerance:'Tolerância à Dor',
+    Fitness_slutness:'Disposição Sexual',Fitness_exhibitionism:'Exibicionismo',
+    Fitness_servicing:'Servilidade',Fitness_summarizing:'Compostura'};
+  let perFitnessHtml = '';
+  if (per) {
+    PER_FITNESS.forEach(k => {
+      const v = parseFloat(getVal(per, k) || '0');
+      const pct = Math.round(v * 100);
+      const cls = pct >= 70 ? 'good' : pct >= 40 ? 'med' : 'low';
+      perFitnessHtml += `<div>
+        <div style="display:flex;justify-content:space-between;font-size:11px">
+          <span style="color:var(--muted)">${PER_LABELS[k]||k}</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">${pct}%</span>
+        </div>
+        <div class="fitness-bar"><div class="fitness-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>`;
+    });
+  }
+  el('emp-fitness-per').innerHTML = perFitnessHtml || '<span style="color:var(--muted)">Sem dados</span>';
+
+  // Traits
+  renderApTraits(id);
+  renderPerTraits(id);
+}
+
+function saveEmpName(key, v) {
+  if (!saveData || !selectedEmpId) return;
+  const emp = getEmployee(selectedEmpId);
+  if (emp) setVal(emp, key, v);
+  // Re-render list item name
+  const nameEl = document.querySelector(`.emp-card.active .emp-name`);
+  if (nameEl) {
+    const emp2 = getEmployee(selectedEmpId);
+    nameEl.textContent = `${getVal(emp2,'Nombre')||''} ${getVal(emp2,'Apellido')||''}`;
+  }
+}
+function saveEmpHired(key, v) {
+  if (!saveData || !selectedEmpId) return;
+  const hired = getHiredNode(selectedEmpId);
+  if (hired) setVal(hired, key, v);
+}
+function saveEmpMemoria(empId, key, checked) {
+  if (!saveData) return;
+  const emp = getEmployee(empId);
+  const mem = findChild(emp, 'Memorias');
+  if (mem) setVal(mem, key, checked ? 'True' : 'False');
+}
+
+// ══════════════════════════════════════════
+// TRAITS RENDERING
+// ══════════════════════════════════════════
+
+// Appearance trait groups definition
+const AP_GROUPS = [
+  {id:'corpo', label:'🧍 Corpo', ids:['Scala_Puppet_','Morpher_BODY_fat_','Scaler_Spine01_','Scaler_Spine02_','Scaler_Cabeza_','Scaler_Cuello_','Desplazador_Cuello_']},
+  {id:'rosto', label:'😊 Rosto', prefix:'Morpher_FACE_'},
+  {id:'olhos', label:'👁️ Olhos', ids:['Desplazador_Ojo_L','Desplazador_Ojo_R','Scaler_Ojo_L','Scaler_Ojo_R','Scaler_Iris_R','Scaler_Iris_L','Scaler_Sclera_R','Scaler_Sclera_L']},
+  {id:'cabelo', label:'💇 Cabelo', ids:['Reemplazador_StyloDeCabello_','Scaler_CerdasDeCabello_','Scaler_RisosDeCabello_','Incrementador_FrequenciaRisosDeCabello_','Scaler_AxisDeRisosDeCabello_','Interpolador_Tip_']},
+  {id:'seios', label:'🫁 Seios', ids:['Scaler_Seno_L','Scaler_Seno_R','DesplazadorAltura_Seno_L','DesplazadorAltura_Seno_R','DesplazadorLateral_Seno_L','DesplazadorLateral_Seno_R','RotadorHorizontal_Seno_L','RotadorHorizontal_Seno_R','RotadorVertical_Seno_L','RotadorVertical_Seno_R','Suavizador_Senos_L','Suavizador_Senos_R','Scaler_Pezon_L','Scaler_Pezon_R','Estirador_Pezones_L','Estirador_Pezones_R','Scaler_SenosAureola_']},
+  {id:'quadril', label:'🍑 Quadril/Glúteos', ids:['Scaler_PelvisLat_L','Scaler_PelvisLat_R','Desplazador_PelvisLat_L','Desplazador_PelvisLat_R','Scaler_Nalga_L','Scaler_Nalga_R','Desplazador_Nalga_L','Desplazador_Nalga_R','Suavizador_Nalga_L','Suavizador_Nalga_R','Disminuyente_RotacionNalga_R','Disminuyente_RotacionNalga_L','Desplazador_GlutenAperture_L','Desplazador_GlutenAperture_R']},
+  {id:'pernas', label:'🦵 Pernas/Pés', ids:['Desplazador_DePivotDePiernas_L','Desplazador_DePivotDePiernas_R','Scaler_PiernaSuperior_L','Scaler_PiernaSuperior_R','Scaler_CanillaSuperior_L','Scaler_CanillaSuperior_R','Scaler_PiernaInferior_L','Scaler_PiernaInferior_R','Scaler_CanillaInferior_L','Scaler_CanillaInferior_R','Scaler_Pie_L','Scaler_Pie_R']},
+  {id:'bracos', label:'💪 Braços/Mãos', ids:['Scaler_BrazoSuperior_L','Scaler_BrazoSuperior_R','Scaler_AnteBrazoSuperior_L','Scaler_AnteBrazoSuperior_R','Scaler_BrazoInferior_L','Scaler_BrazoInferior_R','Scaler_AnteBrazoInferior_L','Scaler_AnteBrazoInferior_R','Scaler_Mano_L','Scaler_Mano_R']},
+  {id:'vag', label:'⚥ Vagina', ids:['Scaler_VagLabia_','Scaler_VagHole_','Scaler_BaseClitoris_','Scaler_PuntaClitoris_','Scaler_Uretra_','Controller_VagLabiaFirmesaR_','Controller_VagLabiaFirmesaL_','Controller_VagProfundidadVirtual_','Controller_VagAperturaVirtual_','Rotador_Vag_','Controller_VagDesgaste_','Morpher_VagLavAnchoBajos_','Morpher_VagLavAnchoMedios_','Morpher_VagLavAnchoAltos_','Morpher_VagHoleAbierto_','Morpher_VagHoleCerrado_','Morpher_VagLavAltura_','Morpher_VagLavAperturaL_','Morpher_VagLavAperturaR_','Morpher_VagHoleContraste_']},
+  {id:'anus', label:'🔵 Ânus', ids:['Scaler_Anus_','Desplazador_Anus_','Rotador_Anus_','Morpher_AnusIrregularidadA_','Morpher_AnusIrregularidadB_','Morpher_AnusIrregularidadC_','Morpher_AnusIrregularidadD_','Morpher_AnusArrugasA_','Morpher_AnusProfundidade_','Morpher_AnusConeccion_','Controller_AnusDesgaste_','Controller_AnusProfundidadVirtual_','Controller_AnusAperturaVirtual_']},
+  {id:'cores', label:'🎨 Cores / Pele', ids:['Coloreador_MainPiel_','Textureador_MainPiel_','Coloreador_BrilloMainPiel_','Coloreador_Labios_','Coloreador_Cejas_','Coloreador_EyeLashes_','Coloreador_Iris_R','Coloreador_Iris_L','Coloreador_Sclera_R','Coloreador_Sclera_L','Coloreador_StyloDeCabello_','Coloreador_BrilloDeCabello_','Coloreador_Pezones_','Coloreador_Vag_','Coloreador_Ano_','Coloreador_FingerNails_','Coloreador_ToeNails_','Coloreador_Pubes_','Coloreador_Dientes_']},
+  {id:'texturas', label:'🖌️ Texturas', ids:['Textureador_Iris_R','Textureador_Iris_L','Textureador_Ceja_L','Textureador_Ceja_R','Textureador_EyeLashes_','Textureador_NormalLabios_','Textureador_FacialDecals_','Textureador_Pezones_','Textureador_Pubes_','Textureador_BodyDecals_']},
+  {id:'ceja', label:'🔼 Sobrancelhas/Face', ids:['Scaler_Ceja_L','Scaler_Ceja_R','Desplazador_Ceja_L','Desplazador_Ceja_R','Morpher_FACE_Brow  Wrinkle','Morpher_FACE_Brow Lower','Morpher_FACE_Brow Near Brown','Morpher_FACE_Brow Width','Morpher_FACE_Brown Angle','Morpher_FACE_Brown Depth']},
+];
+
+// Personality trait groups
+const PER_GROUPS = [
+  {id:'rasgo', label:'🧬 Personalidade Base', prefix:'Personalidad_Rasgo_'},
+  {id:'fisico', label:'💊 Físico / Sensações', ids:['Personalidad_TraitHumano_erogenidad','Personalidad_TraitHumano_bodyEndurance','Personalidad_TraitHumano_vagTightness','Personalidad_TraitHumano_anusTightness','Personalidad_TraitHumano_vagTightnessEndurance','Personalidad_TraitHumano_anusTightnessEndurance','Personalidad_TraitHumano_vagEndurance','Personalidad_TraitHumano_anusEndurance','Personalidad_TraitHumano_bocaTightness','Personalidad_TraitHumano_bocaTightnessEndurance','Personalidad_TraitHumano_bocaEndurance','Personalidad_TraitHumano_bodyHolesVirtualEndurance','Personalidad_TraitHumano_aguanteAlDolorPorPenetracion']},
+  {id:'resposta', label:'❤️ Resposta Sexual', ids:['Personalidad_TraitHumano_orgasmoDuracion','Personalidad_TraitHumano_orgasmoContraciones','Personalidad_TraitHumano_orgasmoReaccionDeAno','Personalidad_TraitHumano_orgasmoReaccionDeVagina','Personalidad_TraitHumano_orgasmoReaccionDeHips','Personalidad_TraitHumano_orgasmoReaccionDeGestoBoca','Personalidad_TraitHumano_orgasmoReaccionDeGestoOjos','Personalidad_TraitHumano_orgasmoReaccionDeArousal','Personalidad_TraitHumano_reaccionDeArousal','Personalidad_TraitHumano_orgasmoAumentoTempDeArousal','Personalidad_TraitHumano_orgasmoRecuperacionDeArousal']},
+  {id:'umidade', label:'💧 Umidade/Fluidos', ids:['Personalidad_TraitHumano_humedadFacial','Personalidad_TraitHumano_humedadCorporal','Personalidad_TraitHumano_humedadVaginal','Personalidad_TraitHumano_humedadAnal','Personalidad_TraitHumano_humedadVelocidad','Personalidad_TraitHumano_humedadPower','Personalidad_TraitHumano_sudorGrasoso','Personalidad_TraitHumano_mocosidad','Personalidad_TraitHumano_eyesResequedad']},
+  {id:'comportamento', label:'😶 Comportamento', ids:['Personalidad_TraitHumano_verguenza','Personalidad_TraitHumano_curiosidad','Personalidad_TraitHumano_fijacion','Personalidad_TraitHumano_pudor','Personalidad_TraitHumano_rabiosa','Personalidad_TraitHumano_muecas','Personalidad_TraitHumano_expresividad','Personalidad_TraitHumano_mimicas','Personalidad_TraitHumano_sumisionVerval','Personalidad_TraitHumano_facilidadParaDesHielar','Personalidad_TraitHumano_estandaresAltos','Personalidad_TraitHumano_inteligencia','Personalidad_TraitHumano_pobreza']},
+  {id:'resposta_tipo', label:'🗣️ Respostas Verbais', ids:['Personalidad_TraitHumano_verbosidad','Personalidad_TraitHumano_verbosidadPublica','Personalidad_TraitHumano_verbosidadPrivada','Personalidad_TraitHumano_verbosidadNatural','Personalidad_TraitHumano_verbosidadNoNatural','Personalidad_TraitHumano_verbosidadPositiva','Personalidad_TraitHumano_verbosidadNegativa','Personalidad_TraitHumano_responcibidad','Personalidad_TraitHumano_responcibidadPublica','Personalidad_TraitHumano_responcibidadPrivada','Personalidad_TraitHumano_responcibidadNatural','Personalidad_TraitHumano_responcibidadNoNatural','Personalidad_TraitHumano_leGustaChupar','Personalidad_TraitHumano_chuparIntencidad','Personalidad_TraitHumano_gaggingIntencidad']},
+  {id:'gostos', label:'💖 Preferências / Gostos', ids:['Personalidad_TraitHumano_gustoPorNormales','Personalidad_TraitHumano_gustoPorTimidos','Personalidad_TraitHumano_gustoPorIntelectuales','Personalidad_TraitHumano_gustoPorPatanes','Personalidad_TraitHumano_gustoPorConfiados','Personalidad_TraitHumano_gustoPorPervertidos','Personalidad_TraitHumano_gustoPorAutistas','Personalidad_TraitHumano_gustoPorDinero','Personalidad_TraitHumano_gustoPorHumildad','Personalidad_TraitHumano_gustoPorGordos','Personalidad_TraitHumano_gustoPorViejos','Personalidad_TraitHumano_gustoPorDelgados','Personalidad_TraitHumano_gustoPorMusculosos','Personalidad_TraitHumano_gustoPorJovenes','Personalidad_TraitHumano_gustoPorAltos','Personalidad_TraitHumano_gustoPorBuenaPresencia','Personalidad_TraitHumano_gustoPorMujeres']},
+  {id:'trabalho', label:'💼 Trabalho / Modelagem', ids:['Personalidad_TraitHumano_gustoPorModelaje','Personalidad_TraitHumano_gustoPorModelajeHerotico','Personalidad_TraitHumano_gustoPorModelajeUnderwear','Personalidad_TraitHumano_gustoPorTratoDeClientes','Personalidad_TraitHumano_gustoPorTratoEspecialDeClientes','Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes','Personalidad_TraitHumano_leGustaHacerEjercicio','Personalidad_TraitHumano_leGustaHacerEjercicioNoNatural']},
+  {id:'desejos', label:'🌟 Desejos', ids:['Personalidad_TraitHumano_deseoGananciaPrimario','Personalidad_TraitHumano_deseoGananciaSegundario','Personalidad_TraitHumano_deseoGananciaTerciario','Personalidad_TraitHumano_deseoGananciaPorEstimulosPositivos','Personalidad_TraitHumano_deseoGananciaPorEstimulosNegativos','Personalidad_TraitHumano_deseosResiliance']},
+  {id:'patience', label:'⏳ Paciência / Resistência', ids:['Personalidad_TraitHumano_patience','Personalidad_TraitHumano_ragePatience','Personalidad_TraitHumano_painPatience','Personalidad_TraitHumano_deceptionPatience','Personalidad_TraitHumano_fearPatience','Personalidad_TraitHumano_maxEmocionValueEndurance','Personalidad_TraitHumano_maxRageValueEndurance','Personalidad_TraitHumano_maxPainValueEndurance','Personalidad_TraitHumano_maxDeceptionValueEndurance','Personalidad_TraitHumano_maxPlacerValueEndurance','Personalidad_TraitHumano_maxFearValueEndurance']},
+  {id:'sensibilidade', label:'🎭 Sensibilidade Corporal', ids:['Personalidad_TraitHumano_sensibilidadV2','Personalidad_TraitHumano_estadoFisico','Personalidad_TraitHumano_estadoFisicoEmociones','Personalidad_TraitHumano_erogenidad']},
+  {id:'consent', label:'✅ Consentimento', prefix:'Personalidad_ConsentPorGustos_'},
+  {id:'deseos', label:'💫 Desejos Iniciais', prefix:'Personalidad_Deseos'},
+  {id:'adv_grupo', label:'🔬 Grupos Estímulo (Avançado)', prefix:'Personalidad_Grupo_', advanced:true},
+  {id:'adv_umbral', label:'📉 Limiares (Avançado)', prefix:'Personalidad_DatosDeUmbral_', advanced:true},
+  {id:'adv_mods', label:'🔧 Mods Interação (Avançado)', prefix:'Personalidad_ModsDeInterSegunEmocion_', advanced:true},
+  {id:'adv_gen', label:'⚡ Geração Estímulo (Avançado)', prefix:'Personalidad_EstGen', advanced:true},
+  {id:'adv_inc', label:'📈 Incrementos (Avançado)', prefix:'Personalidad_Inc_', advanced:true},
+  {id:'adv_exp', label:'📊 Experiência (Avançado)', prefix:'Personalidad_Exp_', advanced:true},
+  {id:'adv_concent', label:'🎯 Concentração Req. (Avançado)', prefix:'Personalidad_ConcentRequerido_', advanced:true},
+];
+
+// Trait label translator
+const TRAIT_LABELS = {
+  // Appearance
+  'Scala_Puppet_': 'Altura (Puppet)',
+  'Morpher_BODY_fat_': 'Gordura Corporal',
+  'Scaler_Spine01_': 'Tamanho da Caixa Torácica',
+  'Scaler_Spine02_': 'Tamanho da Cintura',
+  'Scaler_Cabeza_': 'Escala da Cabeça',
+  'Scaler_Cuello_': 'Escala do Pescoço',
+  'Desplazador_Cuello_': 'Posição do Pescoço',
+  'Reemplazador_StyloDeCabello_': 'Estilo do Cabelo (índice)',
+  // Personality rasgos
+  'Personalidad_Rasgo_abstraccion': 'Abstração',
+  'Personalidad_Rasgo_preocupacion': 'Preocupação',
+  'Personalidad_Rasgo_dominancia': 'Dominância',
+  'Personalidad_Rasgo_estabilidadEmocional': 'Estabilidade Emocional',
+  'Personalidad_Rasgo_vivacidad': 'Vivacidade',
+  'Personalidad_Rasgo_aperturaAlCambio': 'Abertura a Mudanças',
+  'Personalidad_Rasgo_perfectionismo': 'Perfeccionismo',
+  'Personalidad_Rasgo_privacidad': 'Privacidade',
+  'Personalidad_Rasgo_razonamiento': 'Raciocínio',
+  'Personalidad_Rasgo_concienciaNormativa': 'Consciência Normativa',
+  'Personalidad_Rasgo_confianzaEnUnoMismo': 'Autoconfiança',
+  'Personalidad_Rasgo_sensibilidad': 'Sensibilidade',
+  'Personalidad_Rasgo_atrevimientoSocial': 'Ousadia Social',
+  'Personalidad_Rasgo_tension': 'Tensão',
+  'Personalidad_Rasgo_vigilancia': 'Vigilância',
+  'Personalidad_Rasgo_calidez': 'Calor',
+  'Personalidad_Rasgo_resilianza': 'Resiliência',
+};
+function getTraitLabel(id) {
+  if (TRAIT_LABELS[id]) return TRAIT_LABELS[id];
+  // Auto-translate
+  return id
+    .replace(/Personalidad_/,'').replace(/Rasgo_/,'')
+    .replace(/TraitHumano_/,'').replace(/ConsentPorGustos_/,'Consentimento: ')
+    .replace(/Morpher_FACE_/,'').replace(/Morpher_BODY_/,'').replace(/Morpher_/,'Morph: ')
+    .replace(/Scaler_/,'Escala: ').replace(/Desplazador_/,'Posição: ')
+    .replace(/Coloreador_/,'Cor: ').replace(/Textureador_/,'Textura: ')
+    .replace(/Reemplazador_/,'Seletor: ').replace(/Controller_/,'')
+    .replace(/Rotador_/,'Rotação: ').replace(/Suavizador_/,'Suavizar: ')
+    .replace(/Estirador_/,'Esticar: ').replace(/DesplazadorAltura_/,'Alt: ')
+    .replace(/DesplazadorLateral_/,'Lat: ').replace(/RotadorHorizontal_/,'RotH: ')
+    .replace(/RotadorVertical_/,'RotV: ').replace(/Disminuyente_/,'Diminuir: ')
+    .replace(/Incrementador_/,'Incrementar: ').replace(/Interpolador_/,'Interp: ')
+    .replace(/Encojedor_/,'Encolher: ').replace(/_L$/,' (E)').replace(/_R$/,' (D)')
+    .replace(/_$/,'').replace(/([A-Z])/g,' $1').trim();
+}
+
+function renderApTraits(empId) {
+  const ap = getEmpApariencia(empId);
+  if (!ap) { el('ap-traits').innerHTML = '<div class="no-data">Sem dados de aparência</div>'; return; }
+  const traits = ap.m_children;
+  const traitMap = {};
+  traits.forEach(t => traitMap[t.m_id] = t);
+
+  let html = '';
+  AP_GROUPS.forEach(group => {
+    let groupTraits = [];
+    if (group.prefix) {
+      groupTraits = traits.filter(t => t.m_id.startsWith(group.prefix));
+    } else if (group.ids) {
+      groupTraits = group.ids.map(id => traitMap[id]).filter(Boolean);
+    }
+    if (!groupTraits.length) return;
+    const isAdv = group.advanced ? ' (avançado)' : '';
+    html += `<details class="tg" ${group.advanced ? '' : 'open'}>
+      <summary>${group.label}<span class="badge">${groupTraits.length}</span></summary>
+      <div class="tg-body" data-group-id="ap-${group.id}">`;
+    groupTraits.forEach(t => {
+      html += buildTraitHTML(t, 'ap', empId);
+    });
+    html += '</div></details>';
+  });
+  // Remaining (not in any group)
+  const allGroupIds = new Set();
+  AP_GROUPS.forEach(g => {
+    if (g.ids) g.ids.forEach(id => allGroupIds.add(id));
+    else if (g.prefix) traits.filter(t => t.m_id.startsWith(g.prefix)).forEach(t => allGroupIds.add(t.m_id));
+  });
+  const remaining = traits.filter(t => !allGroupIds.has(t.m_id));
+  if (remaining.length) {
+    html += `<details class="tg">
+      <summary>🗂️ Outros<span class="badge">${remaining.length}</span></summary>
+      <div class="tg-body">`;
+    remaining.forEach(t => { html += buildTraitHTML(t, 'ap', empId); });
+    html += '</div></details>';
+  }
+  el('ap-traits').innerHTML = html;
+}
+
+function renderPerTraits(empId) {
+  const per = getEmpPersonalidad(empId);
+  if (!per) { el('per-traits').innerHTML = '<div class="no-data">Sem dados de personalidade</div>'; return; }
+  const traits = per.m_children.filter(t => t.m_id !== 'referencias');
+  const traitMap = {};
+  traits.forEach(t => traitMap[t.m_id] = t);
+
+  let html = '';
+  PER_GROUPS.forEach(group => {
+    let groupTraits = [];
+    if (group.prefix) {
+      groupTraits = traits.filter(t => t.m_id.startsWith(group.prefix));
+    } else if (group.ids) {
+      groupTraits = group.ids.map(id => traitMap[id]).filter(Boolean);
+    }
+    if (!groupTraits.length) return;
+    html += `<details class="tg" ${group.advanced ? '' : 'open'}>
+      <summary>${group.label}<span class="badge">${groupTraits.length}</span></summary>
+      <div class="tg-body" data-group-id="per-${group.id}">`;
+    groupTraits.forEach(t => { html += buildTraitHTML(t, 'per', empId); });
+    html += '</div></details>';
+  });
+  el('per-traits').innerHTML = html;
+}
+
+function buildTraitHTML(trait, type, empId) {
+  const mods = getMods(trait);
+  const idxCount = parseInt(trait.m_data.values[trait.m_data.keys.indexOf('IndexCount')] || '0');
+  const isColor = trait.m_id.toLowerCase().includes('coloreador') && mods.length >= 3;
+  const isSelector = (trait.m_id.includes('Reemplazador_') || trait.m_id.includes('Textureador_')) && idxCount > 0;
+  const label = getTraitLabel(trait.m_id);
+
+  if (isColor) {
+    const [r, g, b] = mods;
+    const hex = hsvToHex(r, g, b);
+    return `<div class="tf" data-trait-id="${trait.m_id}" data-emp="${empId}" data-type="${type}">
+      <div class="tf-label" title="${trait.m_id}">${label}</div>
+      <div class="tf-color">
+        <input type="color" value="${hex}"
+          oninput="saveColorTrait('${empId}','${type}','${trait.m_id}',this.value)">
+      </div>
+    </div>`;
+  }
+  if (isSelector) {
+    const curIdx = Math.round(mods[0] * (idxCount - 1));
+    return `<div class="tf" data-trait-id="${trait.m_id}" data-emp="${empId}" data-type="${type}">
+      <div class="tf-label" title="${trait.m_id}">${label} <span style="color:var(--muted2)">(0-${idxCount-1})</span></div>
+      <div class="tf-ctrl">
+        <input type="number" class="tf-select" min="0" max="${idxCount-1}" step="1" value="${curIdx}"
+          oninput="saveSelectorTrait('${empId}','${type}','${trait.m_id}',this.value,${idxCount})">
+      </div>
+    </div>`;
+  }
+  // Standard sliders - show all c values
+  let slidersHTML = '';
+  mods.forEach((v, idx) => {
+    const suffix = mods.length > 1 ? ` [${idx}]` : '';
+    slidersHTML += `<div class="tf-ctrl">
+      <input type="range" min="0" max="1" step="0.001" value="${Math.min(1,Math.max(0,v))}"
+        oninput="saveSliderTrait('${empId}','${type}','${trait.m_id}',${idx},this.value,this.nextElementSibling)">
+      <span class="tf-num">${v.toFixed(3)}</span>
+    </div>`;
+  });
+  return `<div class="tf" data-trait-id="${trait.m_id}" data-emp="${empId}" data-type="${type}">
+    <div class="tf-label" title="${trait.m_id}">${label}${mods.length > 1 ? ' <span style="color:var(--muted2)">×'+mods.length+'</span>' : ''}</div>
+    ${slidersHTML}
+  </div>`;
+}
+
+function saveSliderTrait(empId, type, traitId, idx, value, numEl) {
+  if (!saveData) return;
+  const node = type === 'ap' ? getEmpApariencia(empId) : getEmpPersonalidad(empId);
+  if (!node) return;
+  const trait = findChild(node, traitId);
+  if (!trait) return;
+  setMod(trait, parseFloat(value), idx);
+  if (numEl) numEl.textContent = parseFloat(value).toFixed(3);
+}
+
+function saveColorTrait(empId, type, traitId, hexColor) {
+  if (!saveData) return;
+  const node = type === 'ap' ? getEmpApariencia(empId) : getEmpPersonalidad(empId);
+  if (!node) return;
+  const trait = findChild(node, traitId);
+  if (!trait) return;
+  const [h, s, v] = hexToHsv(hexColor);
+  const i = trait.m_data.keys.indexOf('Mods');
+  if (i < 0) return;
+  const m = JSON.parse(trait.m_data.values[i]);
+  m.c[0] = h; m.c[1] = s; m.c[2] = v;
+  trait.m_data.values[i] = JSON.stringify(m);
+}
+
+function saveSelectorTrait(empId, type, traitId, indexVal, idxCount) {
+  if (!saveData) return;
+  const node = type === 'ap' ? getEmpApariencia(empId) : getEmpPersonalidad(empId);
+  if (!node) return;
+  const trait = findChild(node, traitId);
+  if (!trait) return;
+  const floatVal = parseInt(indexVal) / Math.max(1, idxCount - 1);
+  setMod(trait, floatVal, 0);
+}
+
+// Filter traits by search
+function filterTraits(type, query) {
+  const container = el(type === 'ap' ? 'ap-traits' : 'per-traits');
+  const q = query.toLowerCase().trim();
+  const allTF = container.querySelectorAll('.tf');
+  const allTG = container.querySelectorAll('.tg');
+
+  if (!q) {
+    allTF.forEach(tf => tf.style.display = '');
+    allTG.forEach(tg => { tg.style.display = ''; });
+    return;
+  }
+  allTF.forEach(tf => {
+    const id = tf.dataset.traitId || '';
+    const label = tf.querySelector('.tf-label')?.textContent || '';
+    const match = id.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    tf.style.display = match ? '' : 'none';
+  });
+  allTG.forEach(tg => {
+    const visible = [...tg.querySelectorAll('.tf')].some(tf => tf.style.display !== 'none');
+    tg.style.display = visible ? '' : 'none';
+    if (visible) tg.open = true;
+  });
+}
+
+// ══════════════════════════════════════════
+// AGÊNCIAS
+// ══════════════════════════════════════════
+function renderAgencias() {
+  const ag = getAgencias();
+  const container = el('ag-container');
+  if (!ag) { container.innerHTML = '<div class="no-data">Sem dados de agências</div>'; return; }
+
+  let html = '<div class="ag-grid">';
+  ag.m_children.forEach(a => {
+    const name = AG_NAMES[a.m_id] || a.m_id;
+    const unlocked = getVal(a, 'EsUnlocked') === 'True';
+    html += `<div class="ag-card ${unlocked ? 'unlocked' : ''}">
+      <div class="ag-name">${name}</div>
+      <div class="ag-status">${unlocked ? '✅ Desbloqueada' : '🔒 Bloqueada'}</div>
+      <div style="margin-top:10px">
+        <label class="toggle">
+          <input type="checkbox" ${unlocked ? 'checked' : ''}
+            onchange="saveAgencia('${a.m_id}', this.checked)">
+          <span class="slider-tog"></span>
+        </label>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function saveAgencia(id, v) {
+  if (!saveData) return;
+  const ag = getAgencias();
+  const node = findChild(ag, id);
+  if (node) { setVal(node, 'EsUnlocked', v ? 'True' : 'False'); renderAgencias(); }
+}
+
+// ══════════════════════════════════════════
+// TEMPO
+// ══════════════════════════════════════════
+function renderTempo() {
+  const t = getTimeNode();
+  if (!t) return;
+  ['Year','Mes','Day','Hora','Minutos','InitialYear','InitialMes','InitialDay','InitialHora','InitialMinutos'].forEach(k => {
+    const f = el(`t-${k}`);
+    if (f) f.value = getVal(t, k) || '';
+  });
+}
+function saveTime(key, v) {
+  if (!saveData) return;
+  const t = getTimeNode();
+  if (t) setVal(t, key, v);
+}
+
+// ══════════════════════════════════════════
+// PNG IMPORT / EXPORT
+// ══════════════════════════════════════════
+document.getElementById('png-file').addEventListener('change', e => {
+  if (e.target.files[0]) loadPNG(e.target.files[0]);
+});
+function handlePNGDrop(e) {
+  e.preventDefault();
+  document.getElementById('png-import-box').classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadPNG(file);
+}
+
+async function loadPNG(file) {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const marker = (new TextEncoder()).encode('TValle.Character.Data:');
+    // Boyer-Moore simple search for marker
+    let markerPos = -1;
+    outer: for (let i = 0; i <= bytes.length - marker.length; i++) {
+      for (let j = 0; j < marker.length; j++) {
+        if (bytes[i+j] !== marker[j]) continue outer;
+      }
+      markerPos = i;
+      break;
+    }
+    if (markerPos < 0) { toast('Marcador TValle.Character.Data: não encontrado no PNG', 'err'); return; }
+
+    // Store PNG image bytes (before marker)
+    pngImportBytes = bytes.slice(0, markerPos);
+    // Parse character data
+    const dataBytes = bytes.slice(markerPos + marker.length);
+    let jsonText;
+    try { jsonText = pako.ungzip(dataBytes, {to:'string'}); }
+    catch { jsonText = new TextDecoder().decode(dataBytes); }
+    pngImportData = JSON.parse(jsonText);
+
+    // Show preview
+    const blob = new Blob([pngImportBytes], {type:'image/png'});
+    const url = URL.createObjectURL(blob);
+    el('png-preview').src = url;
+    el('png-preview').style.display = 'block';
+
+    // Show info
+    const npcNode = findChild(pngImportData, 'NPC');
+    const npc = npcNode?.m_children?.[0];
+    const nome = npc ? `${getVal(npc,'Nombre')||''} ${getVal(npc,'Apellido')||''}`.trim() : 'Desconhecido';
+    el('png-info').textContent = `Personagem: ${nome}`;
+    el('png-import-result').style.display = 'block';
+    toast(`PNG carregado: ${nome}`, 'ok');
+  } catch(err) {
+    toast('Erro ao ler PNG: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+function applyPNGImport() {
+  if (!pngImportData || !saveData) { toast('Carregue um save e um PNG primeiro', 'err'); return; }
+  try {
+    const srcNPC = findChild(pngImportData, 'NPC');
+    const srcAp = findChild(pngImportData, 'AparienciaFisica');
+    const srcPer = findChild(pngImportData, 'Personalidad');
+    if (!srcNPC || !srcNPC.m_children.length) { toast('Dados NPC não encontrados no PNG', 'err'); return; }
+
+    const empNode = srcNPC.m_children[0];
+    const newId = empNode.m_id === '00000001-0000-0000-0000-000000000000'
+      ? generateUUID() : empNode.m_id;
+
+    // Get UUIDs of appearance/personality from PNG
+    const apId = getVal(empNode, 'AparienciaFisica');
+    const perId = getVal(empNode, 'Personalidad');
+
+    // Add NPC to save
+    const npcContainer = getNPCContainer();
+    // Update portrait if available
+    if (pngImportBytes) {
+      const b64 = btoa(String.fromCharCode(...pngImportBytes));
+      setVal(empNode, 'Portrait', b64);
+    }
+    // Ensure the NPC id is the new one
+    const clonedNPC = JSON.parse(JSON.stringify(empNode));
+    clonedNPC.m_id = newId;
+    npcContainer.m_children.push(clonedNPC);
+
+    // Add AparienciaFisica
+    if (srcAp && apId) {
+      const apRoot = findChild(saveData, 'AparienciaFisica');
+      if (!apRoot) { saveData.m_children.push({m_id:'AparienciaFisica',m_data:{keys:[],values:[]},m_children:[]}); }
+      const apRootNode = findChild(saveData, 'AparienciaFisica');
+      const apData = findChild(srcAp, apId);
+      if (apData) {
+        const clonedAp = JSON.parse(JSON.stringify(apData));
+        // Add reference
+        const refIdx = clonedAp.m_data.keys.indexOf('belongToNPC');
+        if (refIdx >= 0) clonedAp.m_data.values[refIdx] = newId;
+        apRootNode.m_children.push(clonedAp);
+      }
+    }
+
+    // Add Personalidad
+    if (srcPer && perId) {
+      const perRootNode = findChild(saveData, 'Personalidad');
+      if (perRootNode) {
+        const perData = findChild(srcPer, perId);
+        if (perData) {
+          const clonedPer = JSON.parse(JSON.stringify(perData));
+          perRootNode.m_children.push(clonedPer);
+        }
+      }
+    }
+
+    // Add to Hired (optional - creates hired entry)
+    const hired = findChild(saveData, 'Hired');
+    if (hired) {
+      hired.m_children.push({
+        m_id: newId,
+        m_data: {keys:['Salary','Commission'], values:['5000','50']},
+        m_children: []
+      });
+    }
+    // Add referencias sub-node to emp
+    const addedEmp = findChild(npcContainer, newId);
+    if (addedEmp) {
+      const ref = {m_id:'referencias', m_data:{keys:['IsHired'], values:['ByPlayer']}, m_children:[]};
+      const empMem = findChild(addedEmp, 'Memorias');
+      if (empMem) empMem.m_children.push(ref);
+    }
+
+    renderFuncionarias();
+    toast('Personagem importado com sucesso! Salve o arquivo.', 'ok');
+    pngImportData = null;
+    pngImportBytes = null;
+    el('png-import-result').style.display = 'none';
+  } catch(err) {
+    toast('Erro ao importar: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+function renderPNGExport(empId) {
+  if (!saveData) return;
+  const container = el('png-export-container');
+  const emp = getEmployee(empId);
+  if (!emp) { container.innerHTML = '<div class="no-data">Selecione uma funcionária</div>'; return; }
+
+  const nome = `${getVal(emp,'Nombre')||''} ${getVal(emp,'Apellido')||''}`.trim();
+  const portrait = getVal(emp, 'Portrait');
+  const imgHTML = portrait
+    ? `<img src="data:image/jpeg;base64,${portrait}" class="png-preview" style="margin:0 auto 12px">`
+    : '<div style="font-size:32px;text-align:center;margin-bottom:12px">👤</div>';
+
+  container.innerHTML = `
+    <div style="text-align:center">
+      ${imgHTML}
+      <div style="font-weight:600;margin-bottom:4px">${nome}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">ID: ${empId.substring(0,8)}...</div>
+      <button class="btn primary" onclick="exportEmpPNG('${empId}')">📤 Exportar PNG</button>
+    </div>
+  `;
+}
+
+async function exportEmpPNG(empId) {
+  if (!saveData) return;
+  try {
+    const emp = getEmployee(empId);
+    const apNode = getEmpApariencia(empId);
+    const perNode = getEmpPersonalidad(empId);
+    const apId = getVal(emp, 'AparienciaFisica');
+    const perId = getVal(emp, 'Personalidad');
+
+    const exportObj = {
+      m_id: 'root',
+      m_data: {keys:[], values:[]},
+      m_children: [
+        {m_id:'NPC', m_data:{keys:[], values:[]}, m_children:[emp]},
+        apNode ? {m_id:'AparienciaFisica', m_data:{keys:[], values:[]}, m_children:[apNode]} : null,
+        perNode ? {m_id:'Personalidad', m_data:{keys:[], values:[]}, m_children:[perNode]} : null,
+      ].filter(Boolean)
+    };
+
+    const marker = (new TextEncoder()).encode('TValle.Character.Data:');
+    const jsonGzip = pako.gzip(JSON.stringify(exportObj));
+
+    // Get portrait bytes for PNG header
+    const portrait = getVal(emp, 'Portrait');
+    let pngHeader;
+    if (portrait) {
+      const binary = atob(portrait);
+      pngHeader = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) pngHeader[i] = binary.charCodeAt(i);
+    } else {
+      // Minimal 1x1 PNG
+      pngHeader = new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,
+        0,0,0,1,0,0,0,1,8,2,0,0,0,144,119,83,222,0,0,0,12,73,68,65,84,8,215,99,
+        248,207,192,0,0,0,2,0,1,231,31,90,32,0,0,0,0,73,69,78,68,174,66,96,130]);
+    }
+
+    // Combine: png + marker + gzip data
+    const combined = new Uint8Array(pngHeader.length + marker.length + jsonGzip.length);
+    combined.set(pngHeader, 0);
+    combined.set(marker, pngHeader.length);
+    combined.set(jsonGzip, pngHeader.length + marker.length);
+
+    const nome = `${getVal(emp,'Nombre')||'Character'} ${getVal(emp,'Apellido')||''}`.trim();
+    const blob = new Blob([combined], {type:'image/png'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${nome}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`PNG exportado: ${nome}.png`, 'ok');
+  } catch(err) {
+    toast('Erro ao exportar PNG: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+// ══════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  const sec = el(`sec-${id}`);
+  if (sec) sec.classList.add('active');
+  const link = document.querySelector(`nav a[data-sec="${id}"]`);
+  if (link) link.classList.add('active');
+}
+
+function switchTab(context, tab) {
+  const panels = document.querySelectorAll(`.tab-panel[data-tab^="${context}-"]`);
+  const tabs = document.querySelectorAll(`#sec-${context} .tab, #emp-detail .tab`);
+  panels.forEach(p => p.classList.remove('active'));
+  tabs.forEach(t => t.classList.remove('active'));
+  const panel = document.querySelector(`[data-tab="${context}-${tab}"]`);
+  if (panel) panel.classList.add('active');
+  // Activate tab button (find by onclick content)
+  const tabBtns = document.querySelectorAll('.tab');
+  tabBtns.forEach(btn => {
+    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${context}','${tab}'`))
+      btn.classList.add('active');
+  });
+}
+
+function setStatus(msg, cls='') {
+  const s = el('status');
+  s.textContent = msg;
+  s.className = cls;
+}
+
+function toast(msg, type='info') {
+  const t = el('toast');
+  const div = document.createElement('div');
+  div.className = `toast-msg ${type}`;
+  div.textContent = msg;
+  t.appendChild(div);
+  setTimeout(() => { div.style.opacity='0'; div.style.transition='opacity .3s'; }, 2500);
+  setTimeout(() => div.remove(), 2900);
+}
+
+function el(id) { return document.getElementById(id); }
+
+// ══════════════════════════════════════════
+// COLOR UTILITIES (HSV ↔ HEX)
+// ══════════════════════════════════════════
+function hsvToHex(h, s, v) {
+  // h,s,v in [0,1]
+  let r, g, b;
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1-f) * s);
+  switch (i % 6) {
+    case 0: r=v; g=t; b=p; break;
+    case 1: r=q; g=v; b=p; break;
+    case 2: r=p; g=v; b=t; break;
+    case 3: r=p; g=q; b=v; break;
+    case 4: r=t; g=p; b=v; break;
+    case 5: r=v; g=p; b=q; break;
+  }
+  return '#' + [r, g, b].map(x => Math.round(Math.min(1,Math.max(0,x)) * 255)
+    .toString(16).padStart(2, '0')).join('');
+}
+function hexToHsv(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0, s = max === 0 ? 0 : d/max, v = max;
+  if (d !== 0) {
+    if (max === r) h = ((g-b)/d + 6) % 6;
+    else if (max === g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+    h /= 6;
+  }
+  return [h, s, v];
+}
+
+// ══════════════════════════════════════════
+// MISC UTILS
+// ══════════════════════════════════════════
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0, v = c==='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+</script>
+</body>
+</html>
