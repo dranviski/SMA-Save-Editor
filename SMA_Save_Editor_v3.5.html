@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SMA Save Editor v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root{
+  --bg:#09090f;--surface:#111119;--surface2:#181824;--surface3:#1e1e2e;
+  --border:#2a2a42;--border2:#3a3a58;
+  --p:#b77dff;--p-dim:#7c3aed;--p-glow:rgba(183,125,255,.15);
+  --cyan:#67e8f9;--gold:#fbbf24;--red:#f87171;--green:#86efac;--orange:#fb923c;
+  --text:#e8eaf2;--muted:#8892a8;--muted2:#5a6070;
+  --r:8px;--r2:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Exo 2',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+/* Layout */
+#app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+header{display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.logo{font-weight:700;font-size:15px;letter-spacing:.08em;color:var(--p);text-transform:uppercase}
+.logo span{color:var(--muted);font-weight:300}
+.hdr-file{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.hdr-file.ok{color:var(--green)}.hdr-file.err{color:var(--red)}
+.hdr-mode{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-left:4px}
+.hdr-mode.save-mode{background:rgba(134,239,172,.15);color:var(--green);border:1px solid rgba(134,239,172,.3)}
+.hdr-mode.png-mode{background:rgba(103,232,249,.15);color:var(--cyan);border:1px solid rgba(103,232,249,.3)}
+.hdr-actions{display:flex;gap:8px;margin-left:auto}
+.main-body{display:flex;overflow:hidden;height:100%}
+/* Nav */
+nav{width:196px;min-width:196px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:12px 8px;display:flex;flex-direction:column;gap:2px}
+nav .sep{margin:10px 12px 4px;font-size:10px;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;font-weight:700}
+nav a{display:block;padding:7px 12px;border-radius:var(--r);color:var(--muted);font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;transition:all .15s;border:1px solid transparent}
+nav a:hover{background:var(--surface2);color:var(--text)}
+nav a.active{background:var(--p-glow);color:var(--p);border-color:var(--p-dim)}
+nav a .nav-badge{float:right;font-size:10px;background:var(--surface3);color:var(--muted);padding:1px 5px;border-radius:4px}
+/* Content */
+#content{flex:1;overflow-y:auto;padding:20px 24px}
+.section{display:none}
+.section.active{display:block}
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:18px;margin-bottom:14px}
+.ct{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ct span{color:var(--p)}
+.ct .ct-actions{margin-left:auto;display:flex;gap:6px}
+/* Fields */
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:4px}
+.tip{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:var(--surface3);color:var(--cyan);font-size:8px;cursor:help;font-style:normal;letter-spacing:0;text-transform:none;flex-shrink:0}
+/* Inputs */
+input[type=text],input[type=number],select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--r);padding:7px 10px;font-family:'Exo 2',sans-serif;font-size:13px;width:100%;transition:border .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--p-dim);box-shadow:0 0 0 3px var(--p-glow)}
+select{padding:7px 10px}
+/* Range with number */
+.range-row{display:flex;gap:6px;align-items:center}
+.range-row input[type=range]{flex:1;accent-color:var(--p);cursor:pointer;height:18px}
+.range-row .rnum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);width:54px;flex-shrink:0;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:3px 5px;text-align:center}
+/* Toggle */
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0}
+.tog-row label{font-size:13px;color:var(--text)}
+.tog{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tog-s{position:absolute;inset:0;border-radius:10px;background:var(--surface3);border:1px solid var(--border);cursor:pointer;transition:.2s}
+.tog-s:before{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:var(--muted);left:2px;top:2px;transition:.2s}
+.tog input:checked+.tog-s{background:var(--p-dim);border-color:var(--p)}
+.tog input:checked+.tog-s:before{transform:translateX(18px);background:#fff}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--surface3);border-color:var(--border2)}
+.btn.primary{background:var(--p-dim);border-color:var(--p);color:#fff}.btn.primary:hover{background:var(--p)}
+.btn.success{background:#166534;border-color:var(--green);color:var(--green)}.btn.success:hover{background:#15803d}
+.btn.danger{background:#7f1d1d;border-color:var(--red);color:var(--red)}
+.btn.sm{padding:4px 10px;font-size:11px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* Section header */
+.sh{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.sh h2{font-size:19px;font-weight:700}
+.sh p{font-size:12px;color:var(--muted);margin-top:4px}
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto}
+.tab{padding:8px 14px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.05em;text-transform:uppercase;transition:.15s;white-space:nowrap}
+.tab:hover{color:var(--text)}.tab.active{color:var(--p);border-bottom-color:var(--p)}
+.tp{display:none}.tp.active{display:block}
+/* Drop zone */
+.dz{border:2px dashed var(--border);border-radius:var(--r2);padding:40px 24px;text-align:center;background:var(--surface);cursor:pointer;transition:.2s}
+.dz:hover,.dz.over{border-color:var(--p-dim);background:var(--p-glow)}
+/* Models list */
+.models-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.model-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:0;cursor:pointer;transition:.15s;display:flex;align-items:stretch;overflow:hidden}
+.model-card:hover{border-color:var(--border2)}
+.model-card.active{border-color:var(--p-dim);background:var(--p-glow)}
+.mc-photo{width:60px;min-width:60px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)}
+.mc-photo img{width:60px;height:107px;object-fit:cover;object-position:top}
+.mc-body{flex:1;padding:10px 14px;min-width:0}
+.mc-name{font-weight:700;font-size:15px}
+.mc-meta{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.mc-badges{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em}
+.badge.hired{background:rgba(134,239,172,.12);color:var(--green);border:1px solid rgba(134,239,172,.25)}
+.badge.npc{background:rgba(90,96,112,.2);color:var(--muted2);border:1px solid var(--border)}
+.badge.png{background:rgba(103,232,249,.12);color:var(--cyan);border:1px solid rgba(103,232,249,.25)}
+.mc-right{padding:10px 12px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px}
+/* Section divider */
+.sdiv{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);padding:6px 0 2px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+/* Trait groups */
+.tg{border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;overflow:hidden}
+.tg summary{padding:9px 14px;cursor:pointer;background:var(--surface2);display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;list-style:none;user-select:none}
+.tg summary::-webkit-details-marker{display:none}
+.tg summary:hover{color:var(--text)}
+.tg summary::after{content:'›';font-size:16px;color:var(--border2);margin-left:auto;transition:.2s}
+.tg[open] summary::after{transform:rotate(90deg);color:var(--p)}
+.tg[open] summary{color:var(--text);background:var(--surface3)}
+.tg .tg-body{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;background:var(--surface)}
+.tg .tc{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface);color:var(--muted2);border:1px solid var(--border);flex-shrink:0}
+/* Trait field */
+.tf{display:flex;flex-direction:column;gap:3px}
+.tf-lbl{font-size:11px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:4px;overflow:hidden}
+.tf-lbl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tf-lbl .tf-orig{font-size:9px;color:var(--muted2);font-family:'JetBrains Mono',monospace;flex-shrink:0;cursor:help}
+.tf-ctrl{display:flex;gap:4px;align-items:center}
+.tf-ctrl input[type=range]{flex:1;height:16px;accent-color:var(--p)}
+.tf-ctrl .rnum{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan);width:50px;flex-shrink:0;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 5px;text-align:center}
+.tf-color{display:flex;gap:6px;align-items:center}
+.tf-color input[type=color]{flex:1;height:28px;padding:2px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);cursor:pointer}
+/* Search */
+.srch{position:relative;margin-bottom:12px}
+.srch input{width:100%;padding-left:30px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-size:13px;padding:6px 10px 6px 30px}
+.srch::before{content:'⌕';position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none}
+/* Agencies per model */
+.ag-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.ag-row:last-child{border:none}
+.ag-name{font-size:13px;font-weight:500}
+.ag-status{font-size:11px;color:var(--muted)}
+/* Jobs/Activity */
+.job-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.job-title{font-weight:700;font-size:13px;margin-bottom:8px}
+/* Fitness bar */
+.fbar{height:4px;border-radius:2px;background:var(--surface3);margin-top:3px}
+.fbar-fill{height:100%;border-radius:2px;transition:.3s}
+.fg{background:var(--green)}.fm{background:var(--gold)}.fl{background:var(--red)}
+/* Presets */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.preset-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;cursor:pointer;transition:.15s}
+.preset-card:hover{border-color:var(--p-dim);background:var(--p-glow)}
+.preset-card.applied{border-color:var(--green)}
+.preset-name{font-weight:700;font-size:13px;margin-bottom:4px}
+.preset-desc{font-size:11px;color:var(--muted)}
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.tmsg{padding:9px 14px;border-radius:var(--r2);font-size:12px;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.5);animation:tIn .2s ease}
+.tmsg.ok{background:#14532d;border:1px solid var(--green);color:var(--green)}
+.tmsg.err{background:#7f1d1d;border:1px solid var(--red);color:var(--red)}
+.tmsg.info{background:var(--surface3);border:1px solid var(--border2);color:var(--text)}
+@keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Misc */
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.no-data{text-align:center;padding:40px;color:var(--muted);border:1px dashed var(--border);border-radius:var(--r2)}
+.hint{font-size:11px;color:var(--muted);font-style:italic}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+.fatigue-bar{height:6px;border-radius:3px;background:var(--surface3);margin-top:4px;overflow:hidden}
+.fatigue-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green),var(--gold),var(--red));transition:.3s}
+.png-prev{width:135px;height:240px;border-radius:var(--r);border:1px solid var(--border);display:block;object-fit:cover;object-position:top;margin:0 auto 8px}
+/* Model portrait modal / full size */
+.portrait-wrap{display:flex;gap:16px;align-items:flex-start;margin-bottom:16px}
+.portrait-big{width:135px;height:240px;min-width:135px;border-radius:var(--r2);object-fit:cover;object-position:top;border:2px solid var(--border);background:var(--surface3)}
+.portrait-placeholder{width:135px;height:240px;min-width:135px;border-radius:var(--r2);background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--muted)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="logo">SMA <span>Save Editor</span></div>
+  <span id="hdr-status" class="hdr-file">Sem arquivo</span>
+  <span id="hdr-mode"></span>
+  <div class="hdr-actions">
+    <label class="btn" for="file-sav">📂 Abrir .sav</label>
+    <input type="file" id="file-sav" accept=".sav" style="display:none" onchange="loadSav(this.files[0])">
+    <label class="btn" for="file-png-hdr">🖼️ Abrir .png</label>
+    <input type="file" id="file-png-hdr" accept=".png" style="display:none" onchange="loadPNGStandalone(this.files[0])">
+    <button class="btn success" id="btn-dl" onclick="downloadSave()" style="display:none">💾 Salvar .sav</button>
+  </div>
+</header>
+<div class="main-body">
+<nav id="nav">
+  <span class="sep">Arquivo</span>
+  <a onclick="go('inicio')" data-s="inicio" class="active">🏠 Início</a>
+  <span class="sep">Jogador</span>
+  <a onclick="go('geral')" data-s="geral">⚙️ Geral</a>
+  <a onclick="go('jogador')" data-s="jogador">🎮 Personagem</a>
+  <span class="sep">Agência</span>
+  <a onclick="go('modelos')" data-s="modelos">👩 Modelos <span class="nav-badge" id="nb-models">0</span></a>
+  <a onclick="go('npcs')" data-s="npcs">👤 NPCs</a>
+  <span class="sep">Ferramentas</span>
+  <a onclick="go('modelo-png')" data-s="modelo-png">🖼️ Editor de Modelo (PNG)</a>
+</nav>
+<div id="content">
+
+<!-- INÍCIO -->
+<div class="section active" id="sec-inicio">
+  <div class="sh"><h2>SMA Save Editor <span style="font-size:12px;color:var(--muted);font-weight:400">v3.5</span></h2>
+    <p>Altera saves e modelos do Some Modeling Agency (v1)</p></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <!-- Drop zone SAV -->
+    <div class="dz" id="dz-sav" onclick="document.getElementById('file-sav').click()"
+      ondragover="dzOver(event,'dz-sav')" ondragleave="dzLeave('dz-sav')" ondrop="dzDrop(event,'sav')">
+      <div style="font-size:32px;margin-bottom:8px">💾</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:5px">Arraste ou clique — Save (.sav)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Default.sav</div>
+      <button class="btn sm" style="pointer-events:auto" onclick="event.stopPropagation();openSaveFolder()">📁 Abrir pasta do save</button>
+    </div>
+    <!-- Drop zone PNG -->
+    <div class="dz" id="dz-png" onclick="document.getElementById('file-png-hdr').click()"
+      ondragover="dzOver(event,'dz-png')" ondragleave="dzLeave('dz-png')" ondrop="dzDrop(event,'png')">
+      <div style="font-size:32px;margin-bottom:8px">🖼️</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:5px">Arraste ou clique — Modelo (.png)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Characters\v1\</div>
+      <button class="btn sm" style="pointer-events:auto" onclick="event.stopPropagation();openCharsFolder()">📁 Abrir pasta de personagens</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct"><span>ℹ</span>Sobre</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px;color:var(--muted);line-height:1.8">
+      <div>
+        <b style="color:var(--text)">Modo Save (.sav):</b> Abre e altera o save do jogo — modelos, personagem principal, finanças e mais.<br>
+        <b style="color:var(--text)">Modo PNG (.png):</b> Edita aparência/personalidade de um modelo pelo arquivo .png, sem precisar do save.<br>
+        <span style="color:var(--red)">⚠ Faça backup antes de editar!</span>
+      </div>
+      <div>
+        <b style="color:var(--text)">📁 Pasta do save:</b><br>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px">Documents\TValle Games\Some Modeling Agency\Save\v1\</span>
+        <button class="btn sm" style="margin-left:4px;margin-top:3px" onclick="copyPath('C:\\Users\\PC-01\\Documents\\TValle Games\\Some Modeling Agency\\Save\\v1\\')">📋</button><br><br>
+        <b style="color:var(--text)">📁 Pasta de personagens:</b><br>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px">Documents\TValle Games\Some Modeling Agency\Characters\v1\</span>
+        <button class="btn sm" style="margin-left:4px;margin-top:3px" onclick="copyPath('C:\\Users\\PC-01\\Documents\\TValle Games\\Some Modeling Agency\\Characters\\v1\\')">📋</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GERAL -->
+<div class="section" id="sec-geral">
+  <div class="sh"><h2>⚙️ Configurações Gerais</h2><p>Nome, escritório e tempo do jogo</p></div>
+  <div class="card">
+    <div class="ct"><span>👤</span>Identidade</div>
+    <div class="fields">
+      <div class="field"><label>Nome de usuário</label>
+        <input type="text" id="f-username" oninput="setVal2(findChild(SD,'UserName'),'UserName',this.value)"></div>
+      <div class="field"><label>Nome do personagem</label>
+        <input type="text" id="f-pnome" oninput="setVal2(getPlayerNPC(),'Nombre',this.value)"></div>
+      <div class="field"><label>Sobrenome do personagem</label>
+        <input type="text" id="f-psobrenome" oninput="setVal2(getPlayerNPC(),'Apellido',this.value)"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct"><span>🏢</span>Escritório</div>
+    <div class="fields">
+      <div class="field">
+        <label>Nível do Escritório <i class="tip" title="Afeta o que está disponível no jogo">?</i></label>
+        <select id="f-officelvl" onchange="setVal2(SD,'OfficeLvl',this.value)">
+          <option value="0">0 — Beco</option>
+          <option value="1">1 — Escritório Básico (Pouca Luz)</option>
+          <option value="2">2 — Escritório Básico (Ensolarado)</option>
+          <option value="3">3 — Escritório Grande (Sem Janela)</option>
+          <option value="4">4 — Escritório Executivo</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <details class="card" style="border:1px solid var(--border)">
+    <summary style="cursor:pointer;padding:4px 0;color:var(--muted);font-size:12px;list-style:none;user-select:none">⏰ Tempo do Jogo (avançado) ›</summary>
+    <div style="margin-top:14px">
+      <div class="fields" style="margin-bottom:12px">
+        <div class="field"><label>Ano</label><input type="number" id="t-Year" min="2000" max="2200" oninput="saveTime('Year',this.value)"></div>
+        <div class="field"><label>Mês</label><input type="number" id="t-Mes" min="1" max="12" oninput="saveTime('Mes',this.value)"></div>
+        <div class="field"><label>Dia</label><input type="number" id="t-Day" min="1" max="31" oninput="saveTime('Day',this.value)"></div>
+        <div class="field"><label>Hora</label><input type="number" id="t-Hora" min="0" max="23" oninput="saveTime('Hora',this.value)"></div>
+        <div class="field"><label>Minutos</label><input type="number" id="t-Minutos" min="0" max="59" oninput="saveTime('Minutos',this.value)"></div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- JOGADOR -->
+<div class="section" id="sec-jogador">
+  <div class="sh"><h2>🎮 Personagem Principal</h2><p>Atributos físicos, prazer, dinheiro e emoções</p></div>
+  <div class="tabs">
+    <div class="tab active" onclick="stab('jog','corpo')">💪 Corpo</div>
+    <div class="tab" onclick="stab('jog','prazer')">❤️ Prazer</div>
+    <div class="tab" onclick="stab('jog','financas')">💰 Finanças</div>
+    <div class="tab" onclick="stab('jog','emocoes')">😶 Emoções</div>
+    <div class="tab" onclick="stab('jog','atividade')">📋 Atividade</div>
+  </div>
+  <!-- Corpo -->
+  <div class="tp active" data-tp="jog-corpo">
+    <div class="card">
+      <div class="ct"><span>📏</span>Proporções Físicas</div>
+      <div class="fields" id="stats-corpo"></div>
+    </div>
+  </div>
+  <!-- Prazer -->
+  <div class="tp" data-tp="jog-prazer">
+    <div class="card">
+      <div class="ct"><span>❤️</span>Sistema de Prazer</div>
+      <div class="fields" id="stats-prazer"></div>
+    </div>
+  </div>
+  <!-- Finanças -->
+  <div class="tp" data-tp="jog-financas">
+    <div class="card">
+      <div class="ct"><span>💰</span>Carteira</div>
+      <div class="fields">
+        <div class="field"><label>Dinheiro Atual <i class="tip" title="Saldo atual da carteira">?</i></label>
+          <input type="number" id="f-fiat" min="0" step="1000" oninput="saveWallet(this.value)" style="font-family:'JetBrains Mono',monospace"></div>
+        <div class="field"><label>Dinheiro Inicial <i class="tip" title="Valor inicial salvo para referência">?</i></label>
+          <input type="number" id="f-fiat-i" min="0" step="1000" oninput="saveInitFiat(this.value)" style="font-family:'JetBrains Mono',monospace"></div>
+      </div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn sm" onclick="setMoney(1000000)">💸 1M</button>
+        <button class="btn sm" onclick="setMoney(1000000000)">💸 1B</button>
+        <button class="btn sm" onclick="setMoney(999999999999)">💸 Máximo</button>
+      </div>
+    </div>
+  </div>
+  <!-- Emoções -->
+  <div class="tp" data-tp="jog-emocoes">
+    <div class="card">
+      <div class="ct"><span>😶</span>Modificador de Emoções Negativas</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.8">
+        Este buff permanente controla o quanto emoções negativas aumentam durante interações.<br>
+        <b style="color:var(--text)">gainMod = 0.0</b> → emoções negativas não aumentam (recomendado para edição fácil).
+        <b style="color:var(--text)">gainMod = 1.0</b> → comportamento padrão do jogo.
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label>Modificador de Ganho (gainMod)</label>
+          <div class="range-row">
+            <input type="range" min="-5" max="5" step="0.01" id="sl-gainMod" oninput="saveEmoBuff('gainMod',parseFloat(this.value));document.getElementById('rn-gainMod').value=parseFloat(this.value).toFixed(2)">
+            <input type="number" class="rnum" id="rn-gainMod" min="-5" max="5" step="0.01" oninput="saveEmoBuff('gainMod',parseFloat(this.value));document.getElementById('sl-gainMod').value=this.value">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Atividade -->
+  <div class="tp" data-tp="jog-atividade">
+    <div class="card">
+      <div class="ct"><span>📋</span>Fadiga por Trabalho (do jogador)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        Controla quando o jogador pode enviar modelos novamente. 0 = sem fadiga.
+      </div>
+      <div id="player-activity"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODELOS -->
+<div class="section" id="sec-modelos">
+  <div class="sh"><h2>👩 Modelos</h2><p>Modelos contratadas na agência — <span id="ct-hired" style="color:var(--cyan);font-family:'JetBrains Mono',monospace">0</span> contratada(s)</p></div>
+  <div id="models-hired-list"><div class="no-data">Carregue um save</div></div>
+  <!-- Model detail panel -->
+  <div id="model-detail" style="display:none;margin-top:14px">
+    <hr class="divider">
+    <div id="model-detail-header" style="margin-bottom:14px"></div>
+    <div class="tabs" id="model-detail-tabs">
+      <div class="tab active" onclick="stab('emp','dados')">📋 Dados</div>
+      <div class="tab" onclick="stab('emp','sessoes')">💢 Sessões</div>
+      <div class="tab" onclick="stab('emp','aparencia')">👤 Aparência</div>
+      <div class="tab" onclick="stab('emp','personalidade')">🧠 Personalidade</div>
+      <div class="tab" onclick="stab('emp','agencias')">🏢 Agências</div>
+    </div>
+    <!-- Dados -->
+    <div class="tp active" data-tp="emp-dados">
+      <div class="card">
+        <div class="ct"><span>📋</span>Informações Básicas</div>
+        <div class="fields">
+          <div class="field"><label>Primeiro Nome</label><input type="text" id="ef-nome" oninput="saveEmpField('Nombre',this.value)"></div>
+          <div class="field"><label>Sobrenome</label><input type="text" id="ef-sob" oninput="saveEmpField('Apellido',this.value)"></div>
+          <div class="field"><label>Salário <i class="tip" title="Por sessão de trabalho">?</i></label><input type="number" id="ef-salary" min="0" step="100" oninput="saveEmpHired('Salary',this.value)"></div>
+          <div class="field"><label>Comissão (%)</label><input type="number" id="ef-comm" min="0" max="100" oninput="saveEmpHired('Commission',this.value)"></div>
+          <div class="field"><label>Exp. Modelagem <i class="tip" title="Experiência geral de modelagem (0-1). Afeta performance.">?</i></label>
+            <div class="range-row"><input type="range" min="0" max="1" step="0.01" id="sl-modelexp" oninput="saveEmpField('ModelingExp',this.value);document.getElementById('rn-modelexp').value=parseFloat(this.value).toFixed(3)">
+            <input type="number" class="rnum" id="rn-modelexp" min="0" max="1" step="0.01" oninput="saveEmpField('ModelingExp',this.value);document.getElementById('sl-modelexp').value=this.value"></div>
+          </div>
+          <div class="field"><label>Fadiga <i class="tip" title="0 = sem fadiga, 100 = exausta. Alta fadiga impede ser enviada para trabalhos.">?</i></label>
+            <div class="range-row"><input type="range" min="0" max="100" step="1" id="sl-fatigue" oninput="saveEmpField('Fatigue',this.value);document.getElementById('rn-fatigue').value=parseFloat(this.value).toFixed(1)">
+            <input type="number" class="rnum" id="rn-fatigue" min="0" max="200" step="1" oninput="saveEmpField('Fatigue',this.value);document.getElementById('sl-fatigue').value=Math.min(100,this.value)"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Fadiga atual</div>
+          <div class="fatigue-bar"><div class="fatigue-fill" id="emp-fatigue-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="card" id="emp-interests-card" style="display:none">
+        <div class="ct"><span>💼</span>Interesses (Talent Deployment)
+          <i class="tip" title="O jogo calcula automaticamente com base nos traços de personalidade. Altere Vergonha, Pudor, gustoPorModelajeHerotico etc. na aba Personalidade.">?</i>
+        </div>
+        <div id="emp-interests-list"></div>
+      </div>
+        <div class="ct"><span>📈</span>Progresso no Jogo</div>
+        <div id="emp-memorias"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="card">
+          <div class="ct"><span>📊</span>Fitness Aparência</div>
+          <div id="emp-fit-ap"></div>
+        </div>
+        <div class="card">
+          <div class="ct"><span>📊</span>Fitness Personalidade</div>
+          <div id="emp-fit-per"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Atividade/Sessões tab -->
+    <div class="tp" data-tp="emp-sessoes">
+      <div class="card">
+        <div class="ct"><span>💢</span>Emoções Acumuladas por Sessão (→ Jogador)
+          <div class="ct-actions"><button class="btn sm danger" onclick="zeroNegativeBufs()">🗑 Zerar Negativos</button></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Dor e Raiva altos fazem a modelo começar reativa logo nos próximos assignments. Zerá-los deixa ela "zerada".
+        </div>
+        <div id="emp-sess-emo"></div>
+      </div>
+      <div class="card">
+        <div class="ct"><span>🧠</span>Modificações Permanentes de Personalidade</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Traços alterados por sessões. Negativos = redução do traço base.</div>
+        <div id="emp-sess-pt"></div>
+      </div>
+      <div class="card">
+        <div class="ct"><span>✨</span>Desejos e Aura (Permanentes)</div>
+        <div id="emp-sess-desires"></div>
+      </div>
+      <div class="card">
+        <div class="ct"><span>📊</span>Histórico de Assignments</div>
+        <div id="emp-activity"></div>
+      </div>
+    </div>
+    <!-- Aparência -->
+    <div class="tp" data-tp="emp-aparencia">
+      <div class="card" style="margin-bottom:10px">
+        <div class="ct"><span>🎨</span>Presets de Aparência
+          <div class="ct-actions"><button class="btn sm" onclick="exportProfile('ap')">📤 Exportar Perfil</button></div>
+        </div>
+        <div class="preset-grid" id="ap-presets"></div>
+      </div>
+      <div class="srch"><input type="text" id="ap-search" placeholder="Buscar trait de aparência..." oninput="filterT('ap',this.value)"></div>
+      <div id="ap-traits"></div>
+    </div>
+    <!-- Personalidade -->
+    <div class="tp" data-tp="emp-personalidade">
+      <div class="card" style="margin-bottom:10px">
+        <div class="ct"><span>🧬</span>Presets de Personalidade
+          <div class="ct-actions"><button class="btn sm" onclick="exportProfile('per')">📤 Exportar Perfil</button></div>
+        </div>
+        <div class="preset-grid" id="per-presets"></div>
+      </div>
+      <div class="srch"><input type="text" id="per-search" placeholder="Buscar trait de personalidade..." oninput="filterT('per',this.value)"></div>
+      <div id="per-traits"></div>
+    </div>
+    <!-- Agências por modelo -->
+    <div class="tp" data-tp="emp-agencias">
+      <div class="card">
+        <div class="ct"><span>🏢</span>Agências desta Modelo</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Controla quais agências externas esta modelo específica pode ser enviada.</div>
+        <div id="emp-agencias-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NPCS ══ -->
+<div class="section" id="sec-npcs">
+  <div class="sh"><h2>👤 NPCs / Clientes</h2><p>Somente leitura — edite apenas o XP de Fotografia</p></div>
+  <div id="npc-list-container"><div class="no-data">Carregue um save</div></div>
+</div>
+
+<!-- EDITOR PNG STANDALONE -->
+<div class="section" id="sec-modelo-png">
+  <div class="sh"><h2>🖼️ Editor de Modelo (PNG)</h2><p>Edite modelos diretamente pelo .png — sem precisar do save</p></div>
+  <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start">
+    <!-- Sidebar: drop + info -->
+    <div>
+      <div class="dz" id="dz-png2" onclick="document.getElementById('file-png2').click()"
+        ondragover="dzOver(event,'dz-png2')" ondragleave="dzLeave('dz-png2')" ondrop="dzDrop(event,'png2')"
+        style="padding:24px 16px;margin-bottom:10px">
+        <input type="file" id="file-png2" accept=".png" style="display:none" onchange="loadPNGStandalone(this.files[0])">
+        <div style="font-size:24px;margin-bottom:6px">🖼️</div>
+        <div style="font-weight:700;font-size:13px">Abrir modelo .png</div>
+      </div>
+      <div id="png-preview-card" style="display:none">
+        <div class="card">
+          <div class="ct"><span>👤</span>Modelo</div>
+          <div id="png-model-info"></div>
+          <div class="btn-r" style="margin-top:10px;flex-wrap:wrap">
+            <button class="btn primary sm" onclick="downloadPNG()">💾 Salvar .png</button>
+            <button class="btn sm" id="btn-import-to-save" onclick="importPNGToSave()" style="display:none">➕ Add ao Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Main: editor tabs -->
+    <div id="png-editor" style="display:none">
+      <div class="tabs">
+        <div class="tab active" onclick="stab('png','aparencia')">👤 Aparência</div>
+        <div class="tab" onclick="stab('png','personalidade')">🧠 Personalidade</div>
+      </div>
+      <div class="tp active" data-tp="png-aparencia">
+        <div class="card" style="margin-bottom:10px">
+          <div class="ct"><span>🎨</span>Presets</div>
+          <div class="preset-grid" id="png-ap-presets"></div>
+        </div>
+        <div class="srch"><input type="text" id="png-ap-search" placeholder="Buscar grupo ou trait..." oninput="filterT('png-ap',this.value)"></div>
+        <div id="png-ap-traits"></div>
+      </div>
+      <div class="tp" data-tp="png-personalidade">
+        <div class="card" style="margin-bottom:10px">
+          <div class="ct"><span>🧬</span>Presets</div>
+          <div class="preset-grid" id="png-per-presets"></div>
+        </div>
+        <div class="srch"><input type="text" id="png-per-search" placeholder="Buscar trait..." oninput="filterT('png-per',this.value)"></div>
+        <div id="png-per-traits"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main-body -->
+</div><!-- /app -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════
+//  STATE
+// ══════════════════════════════
+let SD = null;          // save data
+let PNG_DATA = null;    // standalone PNG model data
+let PNG_BYTES = null;   // raw PNG image bytes (before marker)
+let SEL_EMP = null;     // selected employee id
+let SEL_MODE = 'save';  // 'save' or 'png'
+
+// ══════════════════════════════
+//  PRESETS
+// ══════════════════════════════
+const AP_PRESETS = [
+  // ── GOLDA LABITAN (from save analysis) ──
+  {id:'golda_body',name:'✨ Golda — Corpo',desc:'Curvilínea, seios e glúteos grandes, pernas longas. Baseado na Golda Labitan.',traits:{
+    'Scala_Puppet_':[0.5],'Morpher_BODY_fat_':[0],'Scaler_Spine01_':[0],'Scaler_Spine02_':[0],
+    'Scaler_Seno_L':[1],'Scaler_Seno_R':[1],'DesplazadorAltura_Seno_L':[1],'DesplazadorAltura_Seno_R':[1],
+    'Scaler_PelvisLat_L':[1],'Scaler_PelvisLat_R':[1],
+    'Scaler_Nalga_L':[1,0.5,0.5,0.5],'Scaler_Nalga_R':[1,0.5,0.5,0.5],
+    'Suavizador_Nalga_L':[1],'Suavizador_Nalga_R':[1],
+    'Desplazador_GlutenAperture_L':[1],'Desplazador_GlutenAperture_R':[1],
+    'Scaler_PiernaSuperior_L':[1],'Scaler_PiernaSuperior_R':[1],
+    'Scaler_PiernaInferior_L':[1],'Scaler_PiernaInferior_R':[1],
+    'Scaler_CerdasDeCabello_':[0],'Scaler_RisosDeCabello_':[0],
+    'Incrementador_FrequenciaRisosDeCabello_':[0],'Scaler_AxisDeRisosDeCabello_':[1],
+    'Interpolador_Tip_':[0],
+  }},
+  {id:'golda_face',name:'✨ Golda — Rosto',desc:'Rosto Golda Labitan. Curves e Lip Peak característicos. (BETA)',beta:true,traits:{
+    'Morpher_FACE_Mouth Curves':[1],'Morpher_FACE_Lip Top Peak':[0.8],
+    'Morpher_FACE_Jaw Corner Width':[0.5],
+    'Morpher_FACE_Old':[0],'Morpher_FACE_Young':[0],
+    'Morpher_FACE_Jaw Define':[0],'Morpher_FACE_Chin Cleft':[0],'Morpher_FACE_Sharp Chin':[0],
+    'Morpher_FACE_Nose Bridge Flatten':[0],'Morpher_FACE_Nose Aquiline nose':[0],'Morpher_FACE_Nose Dorsal Hump':[0],
+    'Morpher_FACE_Lip Edge Define':[0],'Morpher_FACE_Lip Lower Depth':[0],
+    'Morpher_FACE_Cheek Bones Bulge':[0],
+  }},
+  {id:'golda_colors',name:'✨ Golda — Cores',desc:'Pele rosada, olhos azuis, cabelo vermelho (BETA)',beta:true,traits:{
+    'Textureador_MainPiel_':[0.062],'Coloreador_MainPiel_':[0.3,1,1],
+    'Coloreador_NormalMainPiel_':[0.33],'Coloreador_BrilloMainPiel_':[0.33],
+    'Coloreador_Iris_R':[0.583,0.059,1],'Coloreador_Iris_L':[0.583,0.059,1],
+    'Coloreador_Sclera_R':[0.2,0.081,0.6],'Coloreador_Sclera_L':[0.2,0.081,0.6],
+    'Coloreador_StyloDeCabello_':[0,1,0.5],'Coloreador_BrilloDeCabello_':[0.5],
+    'Coloreador_Labios_':[0,0.59,1,0.728],'Coloreador_Cejas_':[0,1,0.4,1],
+    'Coloreador_Pezones_':[0,0.5,0.5,0.039],'Coloreador_Vag_':[0.286,0.386,0.9,1],'Coloreador_Ano_':[0.222,0.372,0.907,1],
+  }},
+  // ── BODY TYPES ──
+  {id:'alta_magra',name:'Alta e Magra',desc:'Esguia, porte de passarela',traits:{
+    'Scala_Puppet_':[0.85],'Morpher_BODY_fat_':[0.05],'Scaler_Spine01_':[0.2],'Scaler_Spine02_':[0.15],
+    'Scaler_Seno_L':[0.4],'Scaler_Seno_R':[0.4],
+    'Scaler_Nalga_L':[0.3,0.3,0.2,0.2],'Scaler_Nalga_R':[0.3,0.3,0.2,0.2],
+    'Scaler_PelvisLat_L':[0.2],'Scaler_PelvisLat_R':[0.2],
+  }},
+  {id:'curvilinea',name:'Curvilínea',desc:'Seios e quadril grandes, cintura fina',traits:{
+    'Scala_Puppet_':[0.5],'Morpher_BODY_fat_':[0.1],'Scaler_Spine02_':[0.15],
+    'Scaler_Seno_L':[0.9],'Scaler_Seno_R':[0.9],'DesplazadorAltura_Seno_L':[0.7],'DesplazadorAltura_Seno_R':[0.7],
+    'Scaler_PelvisLat_L':[0.7],'Scaler_PelvisLat_R':[0.7],
+    'Scaler_Nalga_L':[0.8,0.9,0.5,0.5],'Scaler_Nalga_R':[0.8,0.9,0.5,0.5],
+  }},
+  {id:'atletica',name:'Atlética',desc:'Corpo definido, pouca gordura',traits:{
+    'Scala_Puppet_':[0.55],'Morpher_BODY_fat_':[0.05],'Scaler_Spine01_':[0.4],
+    'Scaler_Seno_L':[0.5],'Scaler_Seno_R':[0.5],
+    'Scaler_Nalga_L':[0.6,0.7,0.4,0.4],'Scaler_Nalga_R':[0.6,0.7,0.4,0.4],
+    'Scaler_PiernaSuperior_L':[0.8],'Scaler_PiernaSuperior_R':[0.8],
+  }},
+  {id:'petite',name:'Petite',desc:'Baixinha e delicada',traits:{
+    'Scala_Puppet_':[0.12],'Morpher_BODY_fat_':[0.1],
+    'Scaler_Seno_L':[0.3],'Scaler_Seno_R':[0.3],
+    'Scaler_Nalga_L':[0.3,0.3,0.18,0.18],'Scaler_Nalga_R':[0.3,0.3,0.18,0.18],
+    'Scaler_PelvisLat_L':[0.15],'Scaler_PelvisLat_R':[0.15],
+  }},
+  {id:'plus_size',name:'Plus Size (BETA)',desc:'Curvas cheias em todo o corpo',beta:true,traits:{
+    'Scala_Puppet_':[0.45],'Morpher_BODY_fat_':[0.7],'Scaler_Spine01_':[0.3],'Scaler_Spine02_':[0.4],
+    'Scaler_Seno_L':[0.9],'Scaler_Seno_R':[0.9],
+    'Scaler_PelvisLat_L':[0.8],'Scaler_PelvisLat_R':[0.8],
+    'Scaler_Nalga_L':[0.9,0.9,0.6,0.6],'Scaler_Nalga_R':[0.9,0.9,0.6,0.6],
+  }},
+];
+const PER_PRESETS = [
+  // ── MELONIE GOODGER (from save analysis) ──
+  {id:'melonie',name:'✨ Melonie — Topa Quase Tudo',desc:'Aceita interação física, verbal limitado. Baseado na Melonie Goodger do save.',traits:{
+    'Personalidad_Rasgo_dominancia':[0.059],'Personalidad_Rasgo_estabilidadEmocional':[0.8],
+    'Personalidad_Rasgo_vivacidad':[0],'Personalidad_Rasgo_privacidad':[0.001],
+    'Personalidad_Rasgo_atrevimientoSocial':[0.999],'Personalidad_Rasgo_aperturaAlCambio':[0.8],
+    'Personalidad_Rasgo_razonamiento':[0.999],'Personalidad_Rasgo_sensibilidad':[0.999],
+    'Personalidad_Rasgo_confianzaEnUnoMismo':[0.8],'Personalidad_Rasgo_tension':[0.01],
+    'Personalidad_TraitHumano_verguenza':[0.01],'Personalidad_TraitHumano_pudor':[0.03],
+    'Personalidad_TraitHumano_sumisionVerval':[0.02],'Personalidad_TraitHumano_patience':[0.01],
+    'Personalidad_TraitHumano_estandaresAltos':[0.02],'Personalidad_TraitHumano_gustoPorModelajeHerotico':[0.04],
+    'Personalidad_TraitHumano_verbosidadNoNatural':[0],'Personalidad_TraitHumano_gustoPorTratoDeClientes':[0],
+  }},
+  // ── AYANNA-INSPIRED (topa tudo inclusive verbal) ──
+  {id:'boneca_total',name:'✨ Boneca Total',desc:'Topa tudo, inclusive verbal. Inspirado na Ayanna.',traits:{
+    'Personalidad_Rasgo_dominancia':[0],'Personalidad_Rasgo_privacidad':[0],
+    'Personalidad_Rasgo_vivacidad':[1],'Personalidad_Rasgo_calidez':[1],
+    'Personalidad_Rasgo_atrevimientoSocial':[1],'Personalidad_Rasgo_estabilidadEmocional':[0.6],
+    'Personalidad_TraitHumano_verguenza':[0],'Personalidad_TraitHumano_pudor':[0.03],
+    'Personalidad_TraitHumano_estandaresAltos':[0],'Personalidad_TraitHumano_patience':[0.02],
+    'Personalidad_TraitHumano_sumisionVerval':[0.02],'Personalidad_TraitHumano_gustoPorModelajeHerotico':[0.02],
+    'Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes':[0.02],
+    'Personalidad_TraitHumano_facilidadParaDesHielar':[0.02],
+  }},
+  {id:'submissa',name:'Submissa Total',desc:'Zero resistência, aceita qualquer ordem',traits:{
+    'Personalidad_Rasgo_dominancia':[0.05],'Personalidad_Rasgo_privacidad':[0.05],
+    'Personalidad_TraitHumano_verguenza':[0.02],'Personalidad_TraitHumano_pudor':[0.02],
+    'Personalidad_TraitHumano_responcibidad':[0.95],'Personalidad_TraitHumano_patience':[0.9],
+    'Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes':[0.9],
+  }},
+  {id:'rude',name:'Rude / Difícil',desc:'Alta resistência, difícil de convencer',traits:{
+    'Personalidad_Rasgo_dominancia':[0.85],'Personalidad_Rasgo_tension':[0.8],
+    'Personalidad_TraitHumano_verguenza':[0.8],'Personalidad_TraitHumano_pudor':[0.85],
+    'Personalidad_TraitHumano_rabiosa':[0.7],'Personalidad_TraitHumano_patience':[0.08],
+  }},
+  {id:'gentil',name:'Gentil',desc:'Calorosa, social, fácil de convencer',traits:{
+    'Personalidad_Rasgo_calidez':[0.9],'Personalidad_Rasgo_atrevimientoSocial':[0.75],
+    'Personalidad_Rasgo_estabilidadEmocional':[0.8],
+    'Personalidad_TraitHumano_verguenza':[0.15],'Personalidad_TraitHumano_pudor':[0.12],
+    'Personalidad_TraitHumano_facilidadParaDesHielar':[0.85],'Personalidad_TraitHumano_patience':[0.7],
+  }},
+  {id:'exibicionista',name:'Exibicionista',desc:'Ama ser vista, sem vergonha',traits:{
+    'Personalidad_TraitHumano_verguenza':[0.01],'Personalidad_TraitHumano_pudor':[0.01],
+    'Personalidad_TraitHumano_curiosidad':[0.9],'Personalidad_TraitHumano_gustoPorModelajeHerotico':[0.95],
+    'Personalidad_TraitHumano_gustoPorModelajeUnderwear':[0.9],'Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes':[0.9],
+  }},
+  {id:'ninfo',name:'Ninfomaníaca',desc:'Libido máxima, resposta sexual total',traits:{
+    'Personalidad_TraitHumano_erogenidad':[0.95],'Personalidad_TraitHumano_verguenza':[0.01],
+    'Personalidad_TraitHumano_pudor':[0.01],'Personalidad_TraitHumano_curiosidad':[0.95],
+    'Personalidad_TraitHumano_orgasmoDuracion':[0.9],'Personalidad_TraitHumano_humedadVaginal':[0.9],
+    'Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes':[0.95],
+  }},
+  {id:'profissional',name:'Profissional',desc:'Focada, estável, boa performance',traits:{
+    'Personalidad_Rasgo_estabilidadEmocional':[0.85],'Personalidad_Rasgo_perfectionismo':[0.75],
+    'Personalidad_TraitHumano_gustoPorModelaje':[0.85],'Personalidad_TraitHumano_patience':[0.8],
+    'Personalidad_TraitHumano_leGustaHacerEjercicio':[0.7],
+  }},
+  {id:'timida',name:'Tímida',desc:'Alta vergonha, difícil no início',traits:{
+    'Personalidad_Rasgo_atrevimientoSocial':[0.1],'Personalidad_Rasgo_vivacidad':[0.1],
+    'Personalidad_TraitHumano_verguenza':[0.8],'Personalidad_TraitHumano_pudor':[0.7],
+    'Personalidad_TraitHumano_curiosidad':[0.1],'Personalidad_TraitHumano_estandaresAltos':[0.7],
+  }},
+];
+
+// ══════════════════════════════
+//  HELPERS
+// ══════════════════════════════
+function el(id){return document.getElementById(id)}
+function findChild(node,id){return node&&node.m_children&&node.m_children.find(c=>c.m_id===id)}
+function gv(node,key){if(!node)return null;const i=node.m_data.keys.indexOf(key);return i>=0?node.m_data.values[i]:null}
+function sv(node,key,value){if(!node)return;const i=node.m_data.keys.indexOf(key);if(i>=0)node.m_data.values[i]=String(value);else{node.m_data.keys.push(key);node.m_data.values.push(String(value))}}
+function setVal2(node,key,value){sv(node,key,value)}
+function getMods(trait){const i=trait.m_data.keys.indexOf('Mods');if(i<0)return[0];try{return JSON.parse(trait.m_data.values[i]).c}catch{return[0]}}
+function setMods(trait,mods){const i=trait.m_data.keys.indexOf('Mods');if(i<0)return;try{const m=JSON.parse(trait.m_data.values[i]);m.c=mods.map(v=>parseFloat(v));trait.m_data.values[i]=JSON.stringify(m)}catch{}}
+function setModIdx(trait,idx,val){const i=trait.m_data.keys.indexOf('Mods');if(i<0)return;try{const m=JSON.parse(trait.m_data.values[i]);m.c[idx]=parseFloat(val);trait.m_data.values[i]=JSON.stringify(m)}catch{}}
+// Node accessors
+function getPlayerNPC(){return SD&&findChild(findChild(SD,'NPC'),'00000001-0000-0000-0000-000000000000')}
+function getMainPlayer(){return SD&&findChild(findChild(SD,'NPC'),'MainPlayer')}
+function getPlayerStats(){const m=getPlayerNPC()&&findChild(getPlayerNPC(),'Memorias');return m&&findChild(m,'Stats')}
+function getPlayerWallet(){const m=getPlayerNPC()&&findChild(getPlayerNPC(),'Memorias');return m&&findChild(m,'wallet')}
+function getPlayerBuff(){const m=getPlayerNPC()&&findChild(getPlayerNPC(),'Memorias');const b=m&&findChild(m,'Buff');return b&&findChild(b,'Tvalle.Buff.EmotionGainMod')}
+function getAllNPCs(){if(!SD)return[];const c=findChild(SD,'NPC');if(!c)return[];return c.m_children.filter(n=>n.m_id!=='00000001-0000-0000-0000-000000000000'&&n.m_id!=='MainPlayer')}
+function getHiredNPCs(){const hired=findChild(SD,'Hired');const ids=hired?hired.m_children.map(c=>c.m_id):[];return getAllNPCs().filter(n=>ids.includes(n.m_id)||gv(n,'AparienciaFisica')!==null)}
+function getHiredIds(){const hired=findChild(SD,'Hired');return hired?new Set(hired.m_children.map(c=>c.m_id)):new Set()}
+function getNPCsOnly(){const ids=getHiredIds();return getAllNPCs().filter(n=>!ids.has(n.m_id)&&!gv(n,'AparienciaFisica'))}
+function getNPCById(id){return SD&&findChild(findChild(SD,'NPC'),id)}
+function getEmpAp(empId){const ap=findChild(SD,'AparienciaFisica');const emp=getNPCById(empId);const apId=emp&&gv(emp,'AparienciaFisica');return ap&&apId&&findChild(ap,apId)}
+function getEmpPer(empId){const per=findChild(SD,'Personalidad');const emp=getNPCById(empId);const perId=emp&&gv(emp,'Personalidad');return per&&perId&&findChild(per,perId)}
+function getHiredNode(empId){const h=findChild(SD,'Hired');return h&&findChild(h,empId)}
+function getAgencias(){return SD&&findChild(SD,'Agencias')}
+function getRootActivity(){return SD&&findChild(SD,'Activity')}
+
+// ══════════════════════════════
+//  LOAD / SAVE
+// ══════════════════════════════
+document.getElementById('file-sav').addEventListener('change',e=>{if(e.target.files[0])loadSav(e.target.files[0])});
+document.getElementById('file-png-hdr').addEventListener('change',e=>{if(e.target.files[0])loadPNGStandalone(e.target.files[0])});
+
+async function loadSav(file){
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    let text;
+    try{text=pako.ungzip(bytes,{to:'string'})}
+    catch{text=new TextDecoder().decode(bytes)}
+    SD=JSON.parse(text);
+    setHdrStatus('✅ '+file.name,'ok','save');
+    el('btn-dl').style.display='';
+    renderAll();
+    go('geral');
+    toast('Save carregado!','ok');
+  }catch(e){setHdrStatus('❌ Erro ao carregar','err');toast('Erro: '+e.message,'err');console.error(e)}
+}
+
+function downloadSave(){
+  if(!SD)return;
+  try{
+    const json=JSON.stringify(SD);
+    const gz=pako.gzip(json);
+    dl(new Blob([gz],{type:'application/octet-stream'}),'Default.sav');
+    toast('Save salvo!','ok');
+  }catch(e){toast('Erro: '+e.message,'err')}
+}
+
+function setHdrStatus(msg,cls,mode){
+  el('hdr-status').textContent=msg;el('hdr-status').className='hdr-file '+(cls||'');
+  const mEl=el('hdr-mode');
+  if(mode==='save')mEl.innerHTML='<span class="hdr-mode save-mode">SAVE</span>';
+  else if(mode==='png')mEl.innerHTML='<span class="hdr-mode png-mode">PNG</span>';
+  else mEl.innerHTML='';
+}
+
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+function copyPath(p){navigator.clipboard.writeText(p).then(()=>toast('Caminho copiado!','ok')).catch(()=>{prompt('Copie o caminho:',p)})}
+function openSaveFolder(){copyPath('C:\\Users\\PC-01\\Documents\\TValle Games\\Some Modeling Agency\\Save\\v1\\')}
+function openCharsFolder(){copyPath('C:\\Users\\PC-01\\Documents\\TValle Games\\Some Modeling Agency\\Characters\\v1\\')}
+
+// ══════════════════════════════
+//  RENDER ALL
+// ══════════════════════════════
+function renderAll(){
+  if(!SD)return;
+  renderGeral();renderJogador();renderModelos();renderNPCs();
+}
+
+// ══════════════════════════════
+//  GERAL
+// ══════════════════════════════
+function renderGeral(){
+  if(!SD)return;
+  const un=findChild(SD,'UserName');
+  el('f-username').value=gv(un,'UserName')||'';
+  el('f-officelvl').value=gv(SD,'OfficeLvl')||'1';
+  const p=getPlayerNPC();
+  if(p){el('f-pnome').value=gv(p,'Nombre')||'';el('f-psobrenome').value=gv(p,'Apellido')||''}
+  const t=findChild(SD,'Time');
+  if(t)['Year','Mes','Day','Hora','Minutos'].forEach(k=>{const f=el('t-'+k);if(f)f.value=gv(t,k)||''})
+}
+function saveTime(k,v){if(!SD)return;sv(findChild(SD,'Time'),k,v)}
+
+// ══════════════════════════════
+//  JOGADOR
+// ══════════════════════════════
+const CORPO_STATS=[
+  {k:'Fat',l:'Gordura Corporal',t:'0 = sem gordura, 100 = muito gordo',min:0,max:100},
+  {k:'Thin',l:'Magreza',t:'0 = robusto, 100 = muito magro',min:0,max:100},
+  {k:'Muscle',l:'Músculo',t:'0 = sem músculo, 100 = muito musculoso',min:0,max:100},
+  {k:'Old',l:'Aparência de Idade',t:'0 = jovem, 100 = velho',min:0,max:100},
+  {k:'Height',l:'Altura',t:'Valor 54 ≈ 198 cm no jogo (escala não-linear)',min:0,max:100},
+  {k:'Package',l:'Package',t:'Tamanho do pacote (visão geral)',min:0,max:100},
+  {k:'DickSize',l:'Comprimento',t:'Valor 60 ≈ 18 cm',min:0,max:100},
+  {k:'DickGirth',l:'Circunferência',t:'Valor 25 ≈ 3.5 cm',min:0,max:100},
+  {k:'DickStiffness',l:'Rigidez',t:'0 = flácido, 100 = rígido',min:0,max:100},
+];
+const PRAZER_STATS=[
+  {k:'PleasureGain',l:'Ganho de Prazer',t:'Velocidade de aumento do prazer',min:0,max:100},
+  {k:'PleasureInterExp',l:'Exp. Interativa',t:'Experiência de prazer acumulada',min:0,max:100},
+  {k:'PleasureInterInc',l:'Incremento Interativo',t:'Incremento de prazer por interação',min:0,max:100},
+  {k:'PleasureMaxValue',l:'Prazer Máximo',t:'Limite máximo de prazer (100 = padrão)',min:0,max:100},
+  {k:'EyaculacionContraciones',l:'Contrações',t:'Intensidade das contrações',min:0,max:100},
+  {k:'EyaculacionCantidad',l:'Quantidade',t:'Volume de ejaculação',min:0,max:100},
+];
+
+function buildStatField(def,node,onchange){
+  return`<div class="field"><label>${def.l} <i class="tip" title="${def.t}">?</i></label>
+  <div class="range-row">
+    <input type="range" min="${def.min}" max="${def.max}" step="${def.max>1?1:0.01}" value="${gv(node,def.k)||0}"
+      id="sl-${def.k}" oninput="${onchange}('${def.k}',this.value);document.getElementById('rn-${def.k}').value=parseFloat(this.value).toFixed(2)">
+    <input type="number" class="rnum" id="rn-${def.k}" min="${def.min}" max="${def.max}" step="${def.max>1?1:0.01}"
+      value="${parseFloat(gv(node,def.k)||0).toFixed(2)}"
+      oninput="${onchange}('${def.k}',this.value);document.getElementById('sl-${def.k}').value=this.value">
+  </div></div>`;
+}
+
+function renderJogador(){
+  if(!SD)return;
+  const stats=getPlayerStats();
+  if(stats){
+    el('stats-corpo').innerHTML=CORPO_STATS.map(d=>buildStatField(d,stats,'savePlayerStat')).join('');
+    el('stats-prazer').innerHTML=PRAZER_STATS.map(d=>buildStatField(d,stats,'savePlayerStat')).join('');
+  }
+  const w=getPlayerWallet();
+  if(w){el('f-fiat').value=gv(w,'fiat')||'0';const init=findChild(getMainPlayer(),'InitialStats');if(init)el('f-fiat-i').value=gv(init,'Fiat')||'0'}
+  const buff=getPlayerBuff();
+  if(buff){const ea=gv(buff,'efectoArgumento');try{const o=JSON.parse(ea);el('sl-gainMod').value=o.gainMod??0;el('rn-gainMod').value=(o.gainMod??0).toFixed(2)}catch{}}
+  renderPlayerActivity();
+}
+
+function savePlayerStat(k,v){
+  if(!SD)return;
+  const stats=getPlayerStats();sv(stats,k,v);
+  const init=findChild(getMainPlayer(),'InitialStats');
+  if(init)sv(init,k,v);
+}
+function saveWallet(v){if(!SD)return;sv(getPlayerWallet(),'fiat',v)}
+function saveInitFiat(v){if(!SD)return;const i=findChild(getMainPlayer(),'InitialStats');sv(i,'Fiat',v)}
+function setMoney(a){if(!SD)return;el('f-fiat').value=a;el('f-fiat-i').value=a;saveWallet(a);saveInitFiat(a)}
+function saveEmoBuff(k,v){
+  if(!SD)return;const buff=getPlayerBuff();if(!buff)return;
+  const ea=gv(buff,'efectoArgumento');try{const o=JSON.parse(ea);o[k]=parseFloat(v);sv(buff,'efectoArgumento',JSON.stringify(o))}catch{}
+}
+
+function renderPlayerActivity(){
+  const act=getRootActivity();
+  if(!act){el('player-activity').innerHTML='<div class="hint">Sem dados de atividade</div>';return}
+  const JOB_LABELS={'tvalle.jobs.spa':'🛁 Spa','tvalle.jobs.photoshoot':'📸 Sessão de Fotos'};
+  let html='';
+  act.m_children.forEach(job=>{
+    const lbl=JOB_LABELS[job.m_id]||job.m_id;
+    const fatigue=parseFloat(gv(job,'Fatigue')||'0');
+    const date=gv(job,'Date')||'—';
+    html+=`<div class="job-card">
+      <div class="job-title">${lbl}</div>
+      <div class="fields">
+        <div class="field"><label>Fadiga</label>
+          <div class="range-row">
+            <input type="range" min="0" max="100" step="1" value="${Math.min(100,fatigue)}"
+              oninput="savePAct('${job.m_id}','Fatigue',this.value);this.nextElementSibling.value=this.value">
+            <input type="number" class="rnum" value="${fatigue.toFixed(1)}" min="0" max="200" step="1"
+              oninput="savePAct('${job.m_id}','Fatigue',this.value);this.previousElementSibling.value=Math.min(100,this.value)">
+          </div>
+        </div>
+        <div class="field"><label>Data da última sessão</label>
+          <input type="text" value="${date}" oninput="savePAct('${job.m_id}','Date',this.value)">
+        </div>
+      </div>
+    </div>`;
+  });
+  el('player-activity').innerHTML=html||'<div class="hint">Sem jobs registrados</div>';
+}
+function savePAct(jobId,key,val){
+  if(!SD)return;const act=getRootActivity();if(!act)return;
+  const job=findChild(act,jobId);if(job)sv(job,key,val);
+}
+
+// ══════════════════════════════
+//  MODELOS
+// ══════════════════════════════
+const MEM_LABELS={TalkedAboutModeling:'Conversou sobre modelagem',ModelingPics:'Fotos básicas',TalkedAboutPicsToPoses:'Conversou sobre poses',ModelingPoses:'Poses desbloqueadas',TalkedAboutPosesToUndies:'Conversou sobre lingerie',ModelingUndress:'Lingerie desbloqueada',TalkedAboutUndiesToEro:'Conversou sobre explícito',ModelingEro:'Explícito desbloqueado'};
+const AG_LABELS={camturbateHardcore:'🎥 CamTurbate Hardcore',escort:'💼 Escort',yellowFever:'🌸 Yellow Fever',asianModels:'🌏 Asian Models',hiEndModels:'💎 Hi-End Models'};
+const JOB_LABELS={'tvalle.jobs.spa':'🛁 Spa','tvalle.jobs.photoshoot':'📸 Sessão de Fotos'};
+const AP_FIT_LABELS={Fitness_height:'Altura',Fitness_body:'Corpo',Fitness_skin:'Pele',Fitness_hair:'Cabelo',Fitness_head:'Cabeça',Fitness_face:'Rosto',Fitness_eyes:'Olhos',Fitness_nose:'Nariz',Fitness_mouth:'Boca',Fitness_breast:'Seios',Fitness_arms:'Braços',Fitness_waist_hip:'Cintura/Quadril',Fitness_crotch:'Virilha',Fitness_buttocks:'Glúteos',Fitness_legs:'Pernas'};
+const PER_FIT_LABELS={Fitness_angerManagement:'Controle de Raiva',Fitness_painTolerance:'Tolerância à Dor',Fitness_slutness:'Disposição Sexual',Fitness_exhibitionism:'Exibicionismo',Fitness_servicing:'Servilidade',Fitness_summarizing:'Compostura'};
+
+function renderModelos(){
+  if(!SD)return;
+  const allNPCs=getAllNPCs();
+  const hiredIds=getHiredIds();
+  const hired=allNPCs.filter(n=>hiredIds.has(n.m_id)||gv(n,'AparienciaFisica'));
+  const npcs=allNPCs.filter(n=>!hiredIds.has(n.m_id)&&!gv(n,'AparienciaFisica'));
+  el('ct-hired').textContent=hired.length+' contratada'+(hired.length!==1?'s':'');
+  el('nb-models').textContent=hired.length;
+  el('models-hired-list').innerHTML=hired.length?hired.map(n=>buildModelCard(n,true)).join(''):'<div class="no-data">Nenhuma modelo contratada</div>';
+  el('models-npc-list').innerHTML=npcs.length?npcs.map(n=>buildModelCard(n,false)).join(''):'<div class="no-data">Sem NPCs</div>';
+}
+
+function buildModelCard(npc,isHired){
+  const nome=(gv(npc,'Nombre')||'??')+' '+(gv(npc,'Apellido')||'');
+  const portrait=gv(npc,'Portrait');
+  const hiredNode=getHiredNode(npc.m_id);
+  const salary=hiredNode?parseInt(gv(hiredNode,'Salary')||'0').toLocaleString('pt-BR'):'—';
+  const apNode=getEmpAp(npc.m_id);
+  const nivel=apNode?gv(apNode,'Nivel'):'?';
+  const fatigue=parseFloat(gv(npc,'Fatigue')||'0');
+  const exp=parseFloat(gv(npc,'ModelingExp')||'0');
+  const imgHTML=portrait?`<img src="data:image/jpeg;base64,${portrait}" style="width:80px;height:80px;object-fit:cover;object-position:top">`:'<span>👤</span>';
+  const badgeH=isHired?'<span class="badge hired">✓ CONTRATADA</span>':'<span class="badge npc">NPC</span>';
+  const fatPct=Math.min(100,fatigue);
+  return`<div class="model-card ${SEL_EMP===npc.m_id?'active':''}" onclick="selModel('${npc.m_id}')">
+    <div class="mc-photo">${imgHTML}</div>
+    <div class="mc-body">
+      <div class="mc-name">${nome.trim()||'(sem nome)'}</div>
+      <div class="mc-meta">Nível ${nivel} • Salário: ${salary} • Exp: ${(exp*100).toFixed(0)}%</div>
+      <div class="mc-badges">${badgeH}</div>
+      <div style="margin-top:6px">
+        <div style="font-size:9px;color:var(--muted2)">Fadiga: ${fatigue.toFixed(1)}</div>
+        <div class="fatigue-bar" style="width:160px"><div class="fatigue-fill" style="width:${fatPct}%"></div></div>
+      </div>
+    </div>
+    <div class="mc-right">
+      <button class="btn sm primary" onclick="event.stopPropagation();exportModelPNG('${npc.m_id}')">📤 PNG</button>
+    </div>
+  </div>`;
+}
+
+function selModel(id){
+  SEL_EMP=id;
+  renderModelos();
+  el('model-detail').style.display='';
+  el('model-detail-tabs').style.display='';
+  renderEmpDetail(id);
+  stab('emp','dados');
+  el('model-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function renderEmpDetail(id){
+  const npc=getNPCById(id);
+  if(!npc)return;
+  const nome=(gv(npc,'Nombre')||'')+' '+(gv(npc,'Apellido')||'');
+  const portrait=gv(npc,'Portrait');
+  const imgHTML=portrait?`<img src="data:image/jpeg;base64,${portrait}" class="portrait-big">`:'<div class="portrait-placeholder">👤</div>';
+  const fatigue=parseFloat(gv(npc,'Fatigue')||'0');
+  const exp=parseFloat(gv(npc,'ModelingExp')||'0');
+  const hiredNode=getHiredNode(id);
+  el('model-detail-header').innerHTML=`
+    <div class="portrait-wrap">
+      ${imgHTML}
+      <div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px">${nome.trim()||'(sem nome)'}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:10px">${id}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${hiredNode?'<span class="badge hired">✓ CONTRATADA</span>':'<span class="badge npc">NPC</span>'}
+        </div>
+      </div>
+    </div>`;
+  // Dados tab
+  el('ef-nome').value=gv(npc,'Nombre')||'';
+  el('ef-sob').value=gv(npc,'Apellido')||'';
+  el('ef-salary').value=hiredNode?gv(hiredNode,'Salary')||'0':'0';
+  el('ef-comm').value=hiredNode?gv(hiredNode,'Commission')||'0':'0';
+  el('sl-modelexp').value=exp;el('rn-modelexp').value=exp.toFixed(3);
+  el('sl-fatigue').value=Math.min(100,fatigue);el('rn-fatigue').value=fatigue.toFixed(1);
+  const fatPct=Math.min(100,fatigue);
+  el('emp-fatigue-bar').style.width=fatPct+'%';
+  // Memorias
+  const mem=findChild(npc,'Memorias');
+  if(mem){
+    let h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px">';
+    Object.entries(MEM_LABELS).forEach(([k,l])=>{
+      const v=gv(mem,k)==='True';
+      h+=`<div class="tr"><label style="font-size:12px">${l}</label>
+        <label class="tog"><input type="checkbox" ${v?'checked':''} onchange="saveEmpMem('${id}','${k}',this.checked)"><span class="tgs"></span></label></div>`;
+    });
+    el('emp-memorias').innerHTML=h+'</div>';
+  }else{el('emp-memorias').innerHTML='<span class="hint">Sem dados de progresso</span>'}
+  // Fitness AP
+  const ap=getEmpAp(id);
+  el('emp-fit-ap').innerHTML=ap?Object.keys(AP_FIT_LABELS).map(k=>{
+    const v=Math.round(parseFloat(gv(ap,k)||'0')*100);
+    const cls=v>=70?'fg':v>=40?'fm':'fl';
+    return`<div><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--muted)">${AP_FIT_LABELS[k]}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">${v}%</span></div><div class="fbar"><div class="fbar-fill ${cls}" style="width:${v}%"></div></div></div>`;
+  }).join(''):'<span class="hint">Sem dados</span>';
+  // Fitness PER
+  const per=getEmpPer(id);
+  el('emp-fit-per').innerHTML=per?Object.keys(PER_FIT_LABELS).map(k=>{
+    const v=Math.round(parseFloat(gv(per,k)||'0')*100);
+    const cls=v>=70?'fg':v>=40?'fm':'fl';
+    return`<div><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--muted)">${PER_FIT_LABELS[k]}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">${v}%</span></div><div class="fbar"><div class="fbar-fill ${cls}" style="width:${v}%"></div></div></div>`;
+  }).join(''):'<span class="hint">Sem dados</span>';
+  // Activity
+  renderEmpActivity(id);
+  // Sessions (buff editing)
+  renderEmpSessions(id);
+  // Interests
+  renderEmpInterests(id);
+  // Traits
+  if(ap)renderTraits('ap',ap.m_children,id);
+  if(per)renderTraits('per',per.m_children.filter(t=>t.m_id!=='referencias'),id);
+  // Agências
+  renderEmpAgencias(id);
+  // Presets
+  renderPresets('ap',AP_PRESETS,id);
+  renderPresets('per',PER_PRESETS,id);
+}
+
+function renderEmpActivity(id){
+  const npc=getNPCById(id);
+  const act=npc&&findChild(npc,'Activity');
+  if(!act||!act.m_children.length){el('emp-activity').innerHTML='<div class="hint">Sem histórico de assignments</div>';return}
+  let html='';
+  act.m_children.forEach(job=>{
+    const lbl=JOB_LABELS[job.m_id]||job.m_id;
+    const exp=parseFloat(gv(job,'Exp')||'0');
+    const date=gv(job,'Date')||'—';
+    const maxExp=job.m_id.includes('spa')?3:4;
+    html+=`<div class="job-card">
+      <div class="job-title">${lbl}</div>
+      <div class="fields">
+        <div class="field"><label>Experiência (XP) <i class="tip" title="0 a ${maxExp}. Determina o nível de habilidade neste trabalho.">?</i></label>
+          <div class="range-row">
+            <input type="range" min="0" max="${maxExp}" step="0.001" value="${exp}"
+              oninput="saveEmpJob('${id}','${job.m_id}','Exp',this.value);this.nextElementSibling.value=parseFloat(this.value).toFixed(3)">
+            <input type="number" class="rnum" value="${exp.toFixed(3)}" min="0" max="${maxExp}" step="0.001"
+              oninput="saveEmpJob('${id}','${job.m_id}','Exp',this.value);this.previousElementSibling.value=this.value">
+          </div>
+        </div>
+        <div class="field"><label>Data da última sessão</label>
+          <input type="text" value="${date}" oninput="saveEmpJob('${id}','${job.m_id}','Date',this.value)">
+        </div>
+      </div>
+    </div>`;
+  });
+  el('emp-activity').innerHTML=html||'<div class="hint">Sem assignments registrados</div>';
+}
+
+
+const EMOTION_MAP={3:'favorability',4:'pleasure',5:'arousal',6:'disappointment',7:'rage',8:'pain',9:'fear',10:'disgust'};
+const EMOTION_PT={favorability:'Favorabilidade',pleasure:'Prazer',arousal:'Excitação',disappointment:'Decepção',rage:'Raiva',pain:'Dor',fear:'Medo',disgust:'Nojo'};
+const EMOTION_ICONS={pain:'💢',rage:'😡',fear:'😨',disappointment:'😞',favorability:'💛',pleasure:'❤️',arousal:'🔥',disgust:'🤢'};
+
+function getEmpBuff(id){
+  const npc=getNPCById(id);
+  const mem=npc&&findChild(npc,'Memorias');
+  return mem&&findChild(mem,'Buff');
+}
+
+function renderEmpInterests(id){
+  const per=getEmpPer(id);
+  const card=el('emp-interests-card');
+  const list=el('emp-interests-list');
+  if(!per){if(card)card.style.display='none';return}
+  if(card)card.style.display='';
+  const getT=tid=>{const t=per.m_children.find(c=>c.m_id===tid);if(!t)return 0;const i=t.m_data.keys.indexOf('Mods');if(i<0)return 0;try{return JSON.parse(t.m_data.values[i]).c[0]}catch{return 0}};
+  const verguenza=getT('Personalidad_TraitHumano_verguenza');
+  const pudor=getT('Personalidad_TraitHumano_pudor');
+  const erotico=getT('Personalidad_TraitHumano_gustoPorModelajeHerotico');
+  const explicito=getT('Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes');
+  const atrev=getT('Personalidad_Rasgo_atrevimientoSocial');
+  // Heuristic: based on Ayanna (topa tudo) having verguenza=0, pudor=0.03, atrev=1
+  // Melonie (topa físico): verguenza=0.01, atrev=0.99
+  function interest(name,threshold_v,threshold_a){
+    const score=(1-verguenza)*0.3+(1-pudor)*0.2+atrev*0.3+erotico*0.1+explicito*0.1;
+    const likely=score>threshold_a;
+    const cls=likely?'int-yes':'int-no';
+    const txt=likely?'✅ Interessada':'🔴 Não Interessada';
+    return`<div class="interest-row"><span class="int-name">${name}</span><span class="int-status ${cls}">${txt}</span></div>`;
+  }
+  list.innerHTML=`
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Estimativa baseada nos traços de personalidade. O valor real é calculado pelo jogo.</div>
+    ${interest('Companion (não-sexual)',0.4,0.45)}
+    ${interest('Girlfriend (soft)',0.5,0.55)}
+    ${interest('Escort (explícito)',0.6,0.65)}
+  `;
+}
+
+function renderEmpSessions(id){
+  const buff=getEmpBuff(id);
+  if(!buff){
+    el('emp-sess-emo').innerHTML='<div class="hint">Sem dados de sessão</div>';
+    el('emp-sess-pt').innerHTML='<div class="hint">Sem dados</div>';
+    el('emp-sess-desires').innerHTML='<div class="hint">Sem dados</div>';
+    return;
+  }
+  // 1) Emotion defaultValue permanent (endHour=-1)
+  const permEmo=buff.m_children.filter(b=>b.m_id.includes('Emotion.')&&b.m_id.includes('defaultValue'));
+  const permEmoMap={};
+  permEmo.forEach(b=>{
+    try{
+      const bo=JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn;
+      const en=EMOTION_MAP[bo.emotion]||'?';
+      if(!permEmoMap[b.m_id])permEmoMap[b.m_id]={buff:b,bo,name:en};
+    }catch{}
+  });
+  // Group by emotion (permanent ones)
+  const permByEmo={};
+  Object.values(permEmoMap).forEach(({buff:b,bo,name})=>{
+    if(bo.endHour===-1){
+      if(!permByEmo[name])permByEmo[name]=[];
+      permByEmo[name].push({b,bo});
+    }
+  });
+  // Timed ones grouped
+  const timedByEmo={};
+  Object.values(permEmoMap).forEach(({buff:b,bo,name})=>{
+    if(bo.endHour!==-1){
+      if(!timedByEmo[name])timedByEmo[name]=[];
+      timedByEmo[name].push({b,bo});
+    }
+  });
+  let emoHtml='';
+  // Show timed emotions (accumulated, most important)
+  const EMO_ORDER=['pain','rage','fear','disappointment','arousal','favorability','pleasure','disgust'];
+  EMO_ORDER.forEach(emo=>{
+    const items=timedByEmo[emo];
+    if(!items||!items.length)return;
+    const total=items.reduce((s,{bo})=>s+bo.value,0);
+    const icon=EMOTION_ICONS[emo]||'';
+    const ptName=EMOTION_PT[emo]||emo;
+    const isDanger=['pain','rage','fear','disappointment'].includes(emo);
+    const uid=`sess_emo_${id}_${emo}`;
+    emoHtml+=`<div style="display:grid;grid-template-columns:160px 1fr 110px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px">${icon} ${ptName}</div>
+        <div style="font-size:10px;color:var(--muted)">${items.length} buffs acumulados</div>
+      </div>
+      <div class="range-row">
+        <input type="range" min="0" max="${isDanger?500:100}" step="0.01" value="${Math.min(isDanger?500:100,total)}"
+          id="sl_${uid}" oninput="updateEmoSum('${id}','${emo}',parseFloat(this.value));document.getElementById('rn_${uid}').value=parseFloat(this.value).toFixed(2)">
+        <input type="number" class="rnum" id="rn_${uid}" min="0" max="${isDanger?500:100}" step="0.01" value="${total.toFixed(2)}"
+          oninput="updateEmoSum('${id}','${emo}',parseFloat(this.value));document.getElementById('sl_${uid}').value=Math.min(${isDanger?500:100},this.value)">
+      </div>
+      <div style="font-size:10px;color:${isDanger?'var(--red)':'var(--green)'}">
+        ${isDanger?'⚠ Negativo':'✓ Positivo'}
+      </div>
+    </div>`;
+  });
+  // Permanent emo
+  Object.entries(permByEmo).forEach(([emo,items])=>{
+    const icon=EMOTION_ICONS[emo]||'';
+    const ptName=EMOTION_PT[emo]||emo;
+    const uid=`sess_pemo_${id}_${emo}`;
+    items.forEach(({b,bo})=>{
+      emoHtml+=`<div style="display:grid;grid-template-columns:160px 1fr 110px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px">${icon} ${ptName} <span style="font-size:9px;color:var(--cyan);background:var(--surface3);padding:1px 4px;border-radius:3px">PERM</span></div>
+          <div style="font-size:10px;color:var(--muted)">${b.m_id.split('(')[1]?.split(',')[0]||''}</div>
+        </div>
+        <div class="range-row">
+          <input type="range" min="0" max="100" step="0.01" value="${Math.min(100,bo.value)}"
+            oninput="savePermBuff('${id}','${b.m_id}',parseFloat(this.value));document.getElementById('rn_pb_${uid}').value=parseFloat(this.value).toFixed(2)">
+          <input type="number" class="rnum" id="rn_pb_${uid}" min="0" max="100" step="0.01" value="${bo.value.toFixed(2)}"
+            oninput="savePermBuff('${id}','${b.m_id}',parseFloat(this.value));this.previousElementSibling.value=Math.min(100,this.value)">
+        </div>
+        <div></div>
+      </div>`;
+    });
+  });
+  el('emp-sess-emo').innerHTML=emoHtml||'<div class="hint">Nenhuma emoção acumulada</div>';
+
+  // 2) PersonalityTrait buffs
+  const ptBufs=buff.m_children.filter(b=>b.m_id.includes('PersonalityTrait'));
+  const PT_NAMES={submissive:'Submisso',Dominant:'Dominante',sensitive:'Sensível',Concerned:'Preocupado',Masochist:'Masoquista',Hybristophilia:'Hibristofilia',Sadist:'Sadista'};
+  let ptHtml='';
+  ptBufs.forEach(b=>{
+    try{
+      const bo=JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn;
+      const name=b.m_id.match(/PersonalityTrait\.\(([^,]+)/)?.[1]||b.m_id;
+      const ptNm=PT_NAMES[name]||name;
+      const uid=`pt_${id}_${b.m_id.replace(/[^a-z0-9]/gi,'_')}`;
+      ptHtml+=`<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:13px">${ptNm}</div><div style="font-size:10px;color:var(--muted)">trait=${bo.trait}</div></div>
+        <div class="range-row">
+          <input type="range" min="-10" max="10" step="0.01" value="${bo.value}"
+            oninput="savePTBuff('${id}','${b.m_id}',parseFloat(this.value));document.getElementById('rn_${uid}').value=parseFloat(this.value).toFixed(2)">
+          <input type="number" class="rnum" id="rn_${uid}" min="-10" max="10" step="0.01" value="${bo.value.toFixed(2)}"
+            oninput="savePTBuff('${id}','${b.m_id}',parseFloat(this.value));this.previousElementSibling.value=this.value">
+        </div>
+      </div>`;
+    }catch{}
+  });
+  el('emp-sess-pt').innerHTML=ptHtml||'<div class="hint">Nenhuma modificação de personalidade acumulada</div>';
+
+  // 3) Desires + EmotionAura permanent
+  const desiresBufs=buff.m_children.filter(b=>b.m_id.startsWith('Tvalle.Buff.Desires.')&&b.m_id.endsWith('-1)'));
+  const auraBufs=buff.m_children.filter(b=>b.m_id.startsWith('Tvalle.Buff.EmotionAura.')&&b.m_id.endsWith('-1)'));
+  let desHtml='';
+  [...desiresBufs,...auraBufs].forEach(b=>{
+    try{
+      const bo=JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn;
+      const shortId=b.m_id.replace('Tvalle.Buff.','').replace('.(','[').replace(',-1)','');
+      const val=bo.value??0;
+      const uid=`des_${id}_${b.m_id.replace(/[^a-z0-9]/gi,'_')}`;
+      desHtml+=`<div style="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${shortId}</div>
+        <div class="range-row">
+          <input type="range" min="0" max="200" step="0.01" value="${Math.min(200,Math.abs(val))}"
+            oninput="saveDesireBuff('${id}','${b.m_id}',parseFloat(this.value));document.getElementById('rn_${uid}').value=parseFloat(this.value).toFixed(1)">
+          <input type="number" class="rnum" id="rn_${uid}" min="0" max="200" step="0.01" value="${val.toFixed(1)}"
+            oninput="saveDesireBuff('${id}','${b.m_id}',parseFloat(this.value));this.previousElementSibling.value=Math.min(200,this.value)">
+        </div>
+      </div>`;
+    }catch{}
+  });
+  el('emp-sess-desires').innerHTML=desHtml||'<div class="hint">Sem desejos acumulados</div>';
+}
+
+function updateEmoSum(empId,emoName,newTotal){
+  const buff=getEmpBuff(empId);if(!buff)return;
+  const emoNum=Object.entries(EMOTION_MAP).find(([,v])=>v===emoName)?.[0];
+  if(!emoNum)return;
+  const items=buff.m_children.filter(b=>b.m_id.includes('Emotion.')&&b.m_id.includes('defaultValue')&&!b.m_id.includes('TowardCharacter'));
+  const relevant=items.filter(b=>{
+    try{const bo=JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn;return String(bo.emotion)===emoNum&&bo.endHour!==-1}catch{return false}
+  });
+  if(!relevant.length)return;
+  // Distribute total proportionally among all timed buffs
+  const currentTotal=relevant.reduce((s,b)=>{try{return s+JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn.value}catch{return s}},0);
+  relevant.forEach(b=>{
+    const i=b.m_data.keys.indexOf('efectoArgumento');
+    try{
+      const ea=JSON.parse(b.m_data.values[i]);
+      const ratio=currentTotal>0?ea.buffOn.value/currentTotal:1/relevant.length;
+      ea.buffOn.value=newTotal*ratio;
+      b.m_data.values[i]=JSON.stringify(ea);
+    }catch{}
+  });
+  // Also update toward-player buffs
+  const etcItems=buff.m_children.filter(b=>b.m_id.includes('EmotionTowardCharacter')&&b.m_id.includes('defaultValue')&&b.m_id.includes('00000001'));
+  const etcRelev=etcItems.filter(b=>{
+    try{const bo=JSON.parse(b.m_data.values[b.m_data.keys.indexOf('efectoArgumento')]).buffOn;return String(bo.emotion)===emoNum&&bo.endHour!==-1}catch{return false}
+  });
+  etcRelev.forEach(b=>{
+    const i=b.m_data.keys.indexOf('efectoArgumento');
+    try{const ea=JSON.parse(b.m_data.values[i]);ea.buffOn.value=newTotal*5;b.m_data.values[i]=JSON.stringify(ea)}catch{}
+  });
+}
+function savePermBuff(empId,buffId,val){
+  const buff=getEmpBuff(empId);if(!buff)return;
+  const b=findChild(buff,buffId);if(!b)return;
+  const i=b.m_data.keys.indexOf('efectoArgumento');
+  try{const ea=JSON.parse(b.m_data.values[i]);ea.buffOn.value=val;b.m_data.values[i]=JSON.stringify(ea)}catch{}
+}
+function savePTBuff(empId,buffId,val){savePermBuff(empId,buffId,val)}
+function saveDesireBuff(empId,buffId,val){savePermBuff(empId,buffId,val)}
+
+function zeroNegativeBufs(){
+  if(!SD||!SEL_EMP)return;
+  const buff=getEmpBuff(SEL_EMP);if(!buff)return;
+  const negEmos=['rage','pain','fear','disappointment'];
+  buff.m_children.forEach(b=>{
+    if(!b.m_id.includes('Emotion.')&&!b.m_id.includes('EmotionTowardCharacter'))return;
+    if(!b.m_id.includes('defaultValue'))return;
+    const negMatch=negEmos.some(e=>b.m_id.toLowerCase().includes(e));
+    if(!negMatch)return;
+    try{
+      const i=b.m_data.keys.indexOf('efectoArgumento');
+      const ea=JSON.parse(b.m_data.values[i]);
+      ea.buffOn.value=0;
+      b.m_data.values[i]=JSON.stringify(ea);
+    }catch{}
+  });
+  renderEmpSessions(SEL_EMP);
+  toast('Emoções negativas zeradas!','ok');
+}
+
+function renderNPCs(){
+  if(!SD)return;
+  const npcs=getNPCsOnly();
+  const c=el('npc-list-container');
+  if(!npcs.length){c.innerHTML='<div class="no-data">Sem NPCs neste save</div>';return}
+  let html='<div style="display:flex;flex-direction:column;gap:8px">';
+  npcs.forEach(n=>{
+    const nome=((gv(n,'Nombre')||'')+' '+(gv(n,'Apellido')||'')).trim()||'(sem nome)';
+    const act=findChild(n,'Activity');
+    let jobsHtml='';
+    if(act){
+      act.m_children.forEach(job=>{
+        const maxExp=job.m_id.includes('spa')?3:4;
+        const exp=parseFloat(gv(job,'Exp')||'0');
+        const lbl=JOB_LABELS[job.m_id]||job.m_id;
+        if(gv(job,'Exp')!==null){
+          const uid=`npc_${n.m_id.slice(0,8)}_${job.m_id.replace(/\./g,'_')}`;
+          jobsHtml+=`<div class="fld" style="max-width:360px;margin-top:8px">
+            <label>${lbl} XP <i class="tip" title="0 a ${maxExp}">?</i></label>
+            <div class="range-row">
+              <input type="range" min="0" max="${maxExp}" step="0.001" value="${exp}"
+                id="${uid}_r" oninput="saveNPCJobExp('${n.m_id}','${job.m_id}',this.value);document.getElementById('${uid}_n').value=parseFloat(this.value).toFixed(3)">
+              <input type="number" class="rnum" id="${uid}_n" value="${exp.toFixed(3)}" min="0" max="${maxExp}" step="0.001"
+                oninput="saveNPCJobExp('${n.m_id}','${job.m_id}',this.value);document.getElementById('${uid}_r').value=this.value">
+            </div>
+          </div>`;
+        }
+      });
+    }
+    html+=`<div class="card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-weight:600;font-size:14px">${nome}</div>
+        <span class="badge npc">NPC</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px">${n.m_id}</div>
+      ${jobsHtml||'<div class="hint" style="margin-top:6px">Sem dados de XP</div>'}
+    </div>`;
+  });
+  html+='</div>';
+  c.innerHTML=html;
+}
+function saveNPCJobExp(npcId,jobId,val){
+  if(!SD)return;
+  const npc=getNPCById(npcId);const act=npc&&findChild(npc,'Activity');
+  if(!act)return;const job=findChild(act,jobId);if(job)sv(job,'Exp',val);
+}
+
+function renderEmpAgencias(id){
+  const agRoot=getAgencias();
+  if(!agRoot){el('emp-agencias-list').innerHTML='<span class="hint">Sem dados</span>';return}
+  let html='';
+  agRoot.m_children.forEach(a=>{
+    const unlocked=gv(a,'EsUnlocked')==='True';
+    const name=AG_LABELS[a.m_id]||a.m_id;
+    html+=`<div class="ag-row">
+      <div><div class="ag-name">${name}</div>
+        <div class="ag-status">${unlocked?'✅ Desbloqueada':'🔒 Bloqueada'}</div></div>
+      <label class="tog"><input type="checkbox" ${unlocked?'checked':''} onchange="saveAgencia('${a.m_id}',this.checked)"><span class="tog-s"></span></label>
+    </div>`;
+  });
+  el('emp-agencias-list').innerHTML=html||'<span class="hint">Sem agências</span>';
+}
+
+// ══════════════════════════════
+//  SAVE HELPERS EMPLOYEES
+// ══════════════════════════════
+function saveEmpField(key,val){
+  if(!SD||!SEL_EMP)return;
+  const npc=getNPCById(SEL_EMP);if(!npc)return;
+  sv(npc,key,val);
+  if(key==='Fatigue'){const fp=Math.min(100,parseFloat(val));el('emp-fatigue-bar').style.width=fp+'%'}
+}
+function saveEmpHired(key,val){if(!SD||!SEL_EMP)return;const h=getHiredNode(SEL_EMP);if(h)sv(h,key,val)}
+function saveEmpMem(empId,key,v){const npc=getNPCById(empId);const mem=npc&&findChild(npc,'Memorias');if(mem)sv(mem,key,v?'True':'False')}
+function saveEmpJob(empId,jobId,key,val){
+  const npc=getNPCById(empId);const act=npc&&findChild(npc,'Activity');
+  if(!act)return;const job=findChild(act,jobId);if(job)sv(job,key,val);
+}
+function saveAgencia(id,v){
+  if(!SD)return;const ag=getAgencias();const n=ag&&findChild(ag,id);
+  if(n){sv(n,'EsUnlocked',v?'True':'False');renderEmpAgencias(SEL_EMP)}
+}
+
+// ══════════════════════════════
+//  TRAITS
+// ══════════════════════════════
+// PT Labels
+const PT_LABELS={
+  // Aparência - corpo
+  'Scala_Puppet_':'Altura (escala)',
+  'Morpher_BODY_fat_':'Gordura Corporal',
+  'Scaler_Spine01_':'Caixa Torácica',
+  'Scaler_Spine02_':'Cintura',
+  'Scaler_Cabeza_':'Cabeça (tamanho)',
+  'Scaler_Cuello_':'Pescoço (tamanho)',
+  'Desplazador_Cuello_':'Pescoço (posição)',
+  // Cabelo
+  'Reemplazador_StyloDeCabello_':'Estilo do Cabelo (índice)',
+  'Scaler_CerdasDeCabello_':'Espessura das Cerdas',
+  'Scaler_RisosDeCabello_':'Cachos',
+  'Incrementador_FrequenciaRisosDeCabello_':'Frequência dos Cachos',
+  'Scaler_AxisDeRisosDeCabello_':'Eixo dos Cachos',
+  'Interpolador_Tip_':'Ponta do Cabelo',
+  // Seios
+  'Scaler_Seno_L':'Seio E (tamanho)',
+  'Scaler_Seno_R':'Seio D (tamanho)',
+  'DesplazadorAltura_Seno_L':'Seio E (altura)',
+  'DesplazadorAltura_Seno_R':'Seio D (altura)',
+  'DesplazadorLateral_Seno_L':'Seio E (posição lateral)',
+  'DesplazadorLateral_Seno_R':'Seio D (posição lateral)',
+  'RotadorHorizontal_Seno_L':'Seio E (rotação horizontal)',
+  'RotadorHorizontal_Seno_R':'Seio D (rotação horizontal)',
+  'RotadorVertical_Seno_L':'Seio E (rotação vertical)',
+  'RotadorVertical_Seno_R':'Seio D (rotação vertical)',
+  'Suavizador_Senos_L':'Seio E (suavidade)',
+  'Suavizador_Senos_R':'Seio D (suavidade)',
+  'Estirador_Pezones_L':'Mamilo E (esticar)',
+  'Estirador_Pezones_R':'Mamilo D (esticar)',
+  'Scaler_Pezon_L':'Mamilo E (tamanho)',
+  'Scaler_Pezon_R':'Mamilo D (tamanho)',
+  'Scaler_SenosAureola_':'Aréola (tamanho)',
+  // Quadril/Glúteos
+  'Scaler_PelvisLat_L':'Quadril E (tamanho)',
+  'Scaler_PelvisLat_R':'Quadril D (tamanho)',
+  'Desplazador_PelvisLat_L':'Quadril E (posição)',
+  'Desplazador_PelvisLat_R':'Quadril D (posição)',
+  'Scaler_Nalga_L':'Glúteo E',
+  'Scaler_Nalga_R':'Glúteo D',
+  'Desplazador_Nalga_L':'Glúteo E (posição)',
+  'Desplazador_Nalga_R':'Glúteo D (posição)',
+  'Suavizador_Nalga_L':'Glúteo E (suavidade)',
+  'Suavizador_Nalga_R':'Glúteo D (suavidade)',
+  'Disminuyente_RotacionNalga_R':'Glúteo D (rotação)',
+  'Disminuyente_RotacionNalga_L':'Glúteo E (rotação)',
+  'Desplazador_GlutenAperture_L':'Abertura Glúteo E',
+  'Desplazador_GlutenAperture_R':'Abertura Glúteo D',
+  // Cores/Texturas
+  'Coloreador_MainPiel_':'Cor da Pele',
+  'Textureador_MainPiel_':'Textura da Pele',
+  'Coloreador_BrilloMainPiel_':'Brilho da Pele',
+  'Coloreador_Labios_':'Cor dos Lábios',
+  'Coloreador_Cejas_':'Cor das Sobrancelhas',
+  'Coloreador_EyeLashes_':'Cor das Cílios',
+  'Coloreador_Iris_R':'Cor da Íris D',
+  'Coloreador_Iris_L':'Cor da Íris E',
+  'Coloreador_Sclera_R':'Cor da Esclera D',
+  'Coloreador_Sclera_L':'Cor da Esclera E',
+  'Coloreador_StyloDeCabello_':'Cor do Cabelo',
+  'Coloreador_BrilloDeCabello_':'Brilho do Cabelo',
+  'Coloreador_Pezones_':'Cor dos Mamilos',
+  'Coloreador_Vag_':'Cor da Vagina',
+  'Coloreador_Ano_':'Cor do Ânus',
+  'Coloreador_FingerNails_':'Cor das Unhas (mão)',
+  'Coloreador_ToeNails_':'Cor das Unhas (pé)',
+  'Coloreador_Pubes_':'Cor dos Pelos Púbicos',
+  'Coloreador_Dientes_':'Cor dos Dentes',
+  'Textureador_Iris_R':'Textura Íris D',
+  'Textureador_Iris_L':'Textura Íris E',
+  'Textureador_Ceja_L':'Textura Sobrancelha E',
+  'Textureador_Ceja_R':'Textura Sobrancelha D',
+  'Textureador_EyeLashes_':'Textura Cílios',
+  'Textureador_NormalLabios_':'Textura Normal Lábios',
+  'Textureador_FacialDecals_':'Decalques Faciais',
+  'Textureador_Pezones_':'Textura Mamilos',
+  'Textureador_Pubes_':'Textura Pelos Púbicos',
+  'Textureador_BodyDecals_':'Decalques Corporais',
+  // Pernas/Pés
+  'Scaler_PiernaSuperior_L':'Coxa E',
+  'Scaler_PiernaSuperior_R':'Coxa D',
+  'Scaler_PiernaInferior_L':'Perna Inferior E',
+  'Scaler_PiernaInferior_R':'Perna Inferior D',
+  'Scaler_CanillaSuperior_L':'Canela Superior E',
+  'Scaler_CanillaSuperior_R':'Canela Superior D',
+  'Scaler_CanillaInferior_L':'Canela Inferior E',
+  'Scaler_CanillaInferior_R':'Canela Inferior D',
+  'Scaler_Pie_L':'Pé E',
+  'Scaler_Pie_R':'Pé D',
+  'Desplazador_DePivotDePiernas_L':'Pivot Perna E',
+  'Desplazador_DePivotDePiernas_R':'Pivot Perna D',
+  // Personalidade
+  'Personalidad_Rasgo_abstraccion':'Abstração',
+  'Personalidad_Rasgo_preocupacion':'Preocupação',
+  'Personalidad_Rasgo_dominancia':'Dominância',
+  'Personalidad_Rasgo_estabilidadEmocional':'Estabilidade Emocional',
+  'Personalidad_Rasgo_vivacidad':'Vivacidade',
+  'Personalidad_Rasgo_aperturaAlCambio':'Abertura a Mudanças',
+  'Personalidad_Rasgo_perfectionismo':'Perfeccionismo',
+  'Personalidad_Rasgo_privacidad':'Privacidade',
+  'Personalidad_Rasgo_razonamiento':'Raciocínio',
+  'Personalidad_Rasgo_concienciaNormativa':'Consciência Normativa',
+  'Personalidad_Rasgo_confianzaEnUnoMismo':'Autoconfiança',
+  'Personalidad_Rasgo_sensibilidad':'Sensibilidade',
+  'Personalidad_Rasgo_atrevimientoSocial':'Ousadia Social',
+  'Personalidad_Rasgo_tension':'Tensão',
+  'Personalidad_Rasgo_vigilancia':'Vigilância',
+  'Personalidad_Rasgo_calidez':'Calor Humano',
+  'Personalidad_Rasgo_resilianza':'Resiliência',
+  'Personalidad_TraitHumano_erogenidad':'Erogeneidade',
+  'Personalidad_TraitHumano_bodyEndurance':'Resistência Corporal',
+  'Personalidad_TraitHumano_vagTightness':'Firmeza Vaginal',
+  'Personalidad_TraitHumano_anusTightness':'Firmeza Anal',
+  'Personalidad_TraitHumano_verguenza':'Vergonha',
+  'Personalidad_TraitHumano_curiosidad':'Curiosidade',
+  'Personalidad_TraitHumano_fijacion':'Fixação',
+  'Personalidad_TraitHumano_pudor':'Pudor',
+  'Personalidad_TraitHumano_rabiosa':'Agressividade',
+  'Personalidad_TraitHumano_muecas':'Expressões Faciais',
+  'Personalidad_TraitHumano_expresividad':'Expressividade',
+  'Personalidad_TraitHumano_responcibidad':'Responsividade',
+  'Personalidad_TraitHumano_responcibidadPublica':'Responsividade Pública',
+  'Personalidad_TraitHumano_responcibidadPrivada':'Responsividade Privada',
+  'Personalidad_TraitHumano_responcibidadNatural':'Responsividade Natural',
+  'Personalidad_TraitHumano_responcibidadNoNatural':'Responsividade Não-Natural',
+  'Personalidad_TraitHumano_verbosidad':'Verbalização',
+  'Personalidad_TraitHumano_verbosidadPublica':'Verbalização Pública',
+  'Personalidad_TraitHumano_verbosidadPrivada':'Verbalização Privada',
+  'Personalidad_TraitHumano_verbosidadNatural':'Verbalização Natural',
+  'Personalidad_TraitHumano_verbosidadNoNatural':'Verbalização Não-Natural',
+  'Personalidad_TraitHumano_verbosidadPositiva':'Verbalização Positiva',
+  'Personalidad_TraitHumano_verbosidadNegativa':'Verbalização Negativa',
+  'Personalidad_TraitHumano_leGustaChupar':'Gosta de Chupar',
+  'Personalidad_TraitHumano_bocaTightness':'Firmeza Oral',
+  'Personalidad_TraitHumano_bocaTightnessEndurance':'Resistência Firmeza Oral',
+  'Personalidad_TraitHumano_bocaEndurance':'Resistência Oral',
+  'Personalidad_TraitHumano_bodyHolesVirtualEndurance':'Resistência Virtual Corporal',
+  'Personalidad_TraitHumano_mimicas':'Mímicas',
+  'Personalidad_TraitHumano_aguanteAlDolorPorPenetracion':'Tolerância à Dor (penetração)',
+  'Personalidad_TraitHumano_chuparIntencidad':'Intensidade ao Chupar',
+  'Personalidad_TraitHumano_gaggingIntencidad':'Intensidade de Engasgo',
+  'Personalidad_TraitHumano_orgasmoDuracion':'Duração do Orgasmo',
+  'Personalidad_TraitHumano_orgasmoContraciones':'Contrações do Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeAno':'Reação Anal no Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeVagina':'Reação Vaginal no Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeHips':'Reação dos Quadris no Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeGestoBoca':'Reação Facial (boca) no Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeGestoOjos':'Reação Facial (olhos) no Orgasmo',
+  'Personalidad_TraitHumano_orgasmoReaccionDeArousal':'Reação de Excitação no Orgasmo',
+  'Personalidad_TraitHumano_reaccionDeArousal':'Reação de Excitação',
+  'Personalidad_TraitHumano_orgasmoAumentoTempDeArousal':'Aumento Temp. de Excitação (orgasmo)',
+  'Personalidad_TraitHumano_orgasmoRecuperacionDeArousal':'Recuperação de Excitação (orgasmo)',
+  'Personalidad_TraitHumano_humedadFacial':'Umidade Facial',
+  'Personalidad_TraitHumano_humedadCorporal':'Umidade Corporal',
+  'Personalidad_TraitHumano_humedadVaginal':'Umidade Vaginal',
+  'Personalidad_TraitHumano_humedadAnal':'Umidade Anal',
+  'Personalidad_TraitHumano_humedadVelocidad':'Velocidade de Umidade',
+  'Personalidad_TraitHumano_humedadPower':'Potência de Umidade',
+  'Personalidad_TraitHumano_sudorGrasoso':'Suor Gorduroso',
+  'Personalidad_TraitHumano_mocosidad':'Mucosidade',
+  'Personalidad_TraitHumano_eyesResequedad':'Ressecamento dos Olhos',
+  'Personalidad_TraitHumano_facilidadParaDesHielar':'Facilidade para Derreter',
+  'Personalidad_TraitHumano_estandaresAltos':'Padrões Elevados',
+  'Personalidad_TraitHumano_gustoPorNormales':'Gosta de Normais',
+  'Personalidad_TraitHumano_gustoPorTimidos':'Gosta de Tímidos',
+  'Personalidad_TraitHumano_gustoPorIntelectuales':'Gosta de Intelectuais',
+  'Personalidad_TraitHumano_gustoPorPatanes':'Gosta de Grosseiros',
+  'Personalidad_TraitHumano_gustoPorConfiados':'Gosta de Confiantes',
+  'Personalidad_TraitHumano_gustoPorPervertidos':'Gosta de Pervertidos',
+  'Personalidad_TraitHumano_gustoPorAutistas':'Gosta de Autistas',
+  'Personalidad_TraitHumano_gustoPorDinero':'Gosta de Dinheiro',
+  'Personalidad_TraitHumano_gustoPorHumildad':'Gosta de Humildade',
+  'Personalidad_TraitHumano_gustoPorGordos':'Gosta de Gordos',
+  'Personalidad_TraitHumano_gustoPorViejos':'Gosta de Velhos',
+  'Personalidad_TraitHumano_gustoPorDelgados':'Gosta de Magros',
+  'Personalidad_TraitHumano_gustoPorMusculosos':'Gosta de Musculosos',
+  'Personalidad_TraitHumano_gustoPorJovenes':'Gosta de Jovens',
+  'Personalidad_TraitHumano_gustoPorAltos':'Gosta de Altos',
+  'Personalidad_TraitHumano_gustoPorBuenaPresencia':'Gosta de Boa Presença',
+  'Personalidad_TraitHumano_gustoPorMujeres':'Gosta de Mulheres',
+  'Personalidad_TraitHumano_pobreza':'Pobreza (background)',
+  'Personalidad_TraitHumano_gustoPorModelaje':'Gosta de Modelagem',
+  'Personalidad_TraitHumano_gustoPorModelajeHerotico':'Gosta de Modelagem Erótica',
+  'Personalidad_TraitHumano_gustoPorModelajeUnderwear':'Gosta de Modelagem de Lingerie',
+  'Personalidad_TraitHumano_gustoPorTratoDeClientes':'Gosta de Lidar com Clientes',
+  'Personalidad_TraitHumano_gustoPorTratoEspecialDeClientes':'Gosta de Trato Especial com Clientes',
+  'Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes':'Gosta de Trato Explícito com Clientes',
+  'Personalidad_TraitHumano_leGustaHacerEjercicio':'Gosta de Exercício',
+  'Personalidad_TraitHumano_leGustaHacerEjercicioNoNatural':'Gosta de Exercício Não-Natural',
+  'Personalidad_TraitHumano_deseoGananciaPrimario':'Desejo Primário',
+  'Personalidad_TraitHumano_deseoGananciaSegundario':'Desejo Secundário',
+  'Personalidad_TraitHumano_deseoGananciaTerciario':'Desejo Terciário',
+  'Personalidad_TraitHumano_deseoGananciaPorEstimulosPositivos':'Ganho de Desejo (positivo)',
+  'Personalidad_TraitHumano_deseoGananciaPorEstimulosNegativos':'Ganho de Desejo (negativo)',
+  'Personalidad_TraitHumano_deseosResiliance':'Resiliência dos Desejos',
+  'Personalidad_TraitHumano_patience':'Paciência Geral',
+  'Personalidad_TraitHumano_ragePatience':'Paciência para Raiva',
+  'Personalidad_TraitHumano_painPatience':'Paciência para Dor',
+  'Personalidad_TraitHumano_deceptionPatience':'Paciência para Decepção',
+  'Personalidad_TraitHumano_fearPatience':'Paciência para Medo',
+  'Personalidad_TraitHumano_maxEmocionValueEndurance':'Resist. Emoção Máxima',
+  'Personalidad_TraitHumano_maxRageValueEndurance':'Resist. Raiva Máxima',
+  'Personalidad_TraitHumano_maxPainValueEndurance':'Resist. Dor Máxima',
+  'Personalidad_TraitHumano_maxDeceptionValueEndurance':'Resist. Decepção Máxima',
+  'Personalidad_TraitHumano_maxPlacerValueEndurance':'Resist. Prazer Máximo',
+  'Personalidad_TraitHumano_maxFearValueEndurance':'Resist. Medo Máximo',
+  'Personalidad_TraitHumano_sensibilidadV2':'Sensibilidade v2',
+  'Personalidad_TraitHumano_estadoFisico':'Estado Físico',
+  'Personalidad_TraitHumano_estadoFisicoEmociones':'Estado Físico (emoções)',
+  'Personalidad_TraitHumano_sumisionVerval':'Submissão Verbal',
+  'Personalidad_TraitHumano_inteligencia':'Inteligência',
+  'Personalidad_TraitHumano_vagTightnessEndurance':'Resist. Firmeza Vaginal',
+  'Personalidad_TraitHumano_anusTightnessEndurance':'Resist. Firmeza Anal',
+  'Personalidad_TraitHumano_vagEndurance':'Resistência Vaginal',
+  'Personalidad_TraitHumano_anusEndurance':'Resistência Anal',
+};
+function getTL(id){
+  if(PT_LABELS[id])return PT_LABELS[id];
+  return id
+    .replace(/Personalidad_Rasgo_/,'').replace(/Personalidad_TraitHumano_/,'')
+    .replace(/Personalidad_ConsentPorGustos_/,'Consentimento: ').replace(/Personalidad_Deseos/,'Desejo')
+    .replace(/Personalidad_/,'')
+    .replace(/Morpher_FACE_/,'').replace(/Morpher_BODY_/,'')
+    .replace(/PhysicsTextureador_/,'Física: ').replace(/Toggleador_/,'Toggle: ')
+    .replace(/Virtual_/,'Virtual: ').replace(/Encojedor_/,'Aparo: ')
+    .replace(/Morpher_/,'Morph: ').replace(/Scala_/,'Escala: ')
+    .replace(/Scaler_/,'Escala: ').replace(/Desplazador_/,'Posição: ')
+    .replace(/Coloreador_/,'Cor: ').replace(/Textureador_/,'Textura: ')
+    .replace(/Reemplazador_/,'Seletor: ').replace(/Controller_/,'')
+    .replace(/Rotador_/,'Rotação: ').replace(/Suavizador_/,'Suavidade: ')
+    .replace(/Estirador_/,'Esticar: ').replace(/DesplazadorAltura_/,'Altura: ')
+    .replace(/DesplazadorLateral_/,'Lateral: ').replace(/RotadorHorizontal_/,'Rot.H: ')
+    .replace(/RotadorVertical_/,'Rot.V: ').replace(/Disminuyente_/,'Reduzir: ')
+    .replace(/Incrementador_/,'Incremento: ').replace(/Interpolador_/,'Interp: ')
+    .replace(/_L$/,' (E)').replace(/_R$/,' (D)').replace(/_$/,'')
+    .replace(/Nariz_?/g,'Nariz ').replace(/Cuello_?/g,'Pescoço ')
+    .replace(/Cabeza_?/g,'Cabeça ').replace(/Ceja_?/g,'Sobrancelha ')
+    .replace(/Ojo_?/g,'Olho ').replace(/Nalga_?/g,'Glúteo ')
+    .replace(/Seno_?/g,'Seio ').replace(/Pezon_?/g,'Mamilo ')
+    .replace(/Brazo_?/g,'Braço ').replace(/Mano_?/g,'Mão ')
+    .replace(/Pierna_?/g,'Perna ').replace(/Canilla_?/g,'Canela ')
+    .replace(/Pelvis_?/g,'Quadril ').replace(/Puppet_?/g,'Altura ')
+    .replace(/Spine0?1_?/g,'Caixa Torácica ').replace(/Spine0?2_?/g,'Cintura ')
+    .replace(/Facial_?/g,'Facial ').replace(/Angular_?/g,'Anelar ')
+    .replace(/Corazon_?/g,'Médio ').replace(/Meñique_?/g,'Mindinho ')
+    .replace(/indice_?/g,'Indicador ').replace(/Puppet/g,'Altura')
+    .replace(/  +/g,' ').replace(/([A-Z])/g,' $1').trim();
+}
+
+// Trait groups
+const AP_GROUPS=[
+  // ── PHYSICS ──
+  {id:'friction',l:'🔧 Física: Fricção da Pele (Skin Friction)',ids:['PhysicsTextureador_PielFriccion_','PhysicsTextureador_VagFriccion_','PhysicsTextureador_AnusFriccion_']},
+  // ── MESH BODY ──
+  {id:'body1',l:'🧍 Malha: Corpo 1 (Body 1)',ids:['Morpher_BODY_fat_']},
+  {id:'body2',l:'📏 Malha: Corpo 2 (Body 2)',ids:['Scala_Puppet_']},
+  // ── MESH HEAD ──
+  {id:'head1',l:'🤴 Malha: Cabeça 1 (Head 1)',ids:['Scaler_Cuello_','Desplazador_Cuello_']},
+  {id:'head2',l:'🗣 Malha: Cabeça 2 (Head 2)',ids:['Scaler_Cabeza_']},
+  // ── MESH FACE ──
+  {id:'face',l:'😊 Malha: Rosto (Face)',ids:['Scaler_Facial_','Morpher_FACE_Old','Morpher_FACE_Young','Morpher_FACE_Heart','Morpher_FACE_Narrow','Morpher_FACE_Round','Morpher_FACE_Square','Morpher_FACE_FrenteAncho_','Morpher_FACE_FrenteAdelante_']},
+  // ── MESH EYEBROWS ──
+  {id:'brows',l:'🔼 Malha: Sobrancelhas (Eyebrows)',ids:['Scaler_Ceja_L','Scaler_Ceja_R','Desplazador_Ceja_L','Desplazador_Ceja_R','Morpher_FACE_Brow  Wrinkle','Morpher_FACE_Brow Lower','Morpher_FACE_Brow Near Brown','Morpher_FACE_Brow Width','Morpher_FACE_Brown Angle','Morpher_FACE_Brown Depth']},
+  // ── MESH EYES ──
+  {id:'eyes',l:'👁️ Malha: Olhos (Eyes)',ids:['Desplazador_Ojo_L','Desplazador_Ojo_R','Scaler_Ojo_L','Scaler_Ojo_R','Scaler_Iris_R','Scaler_Iris_L','Scaler_Sclera_R','Scaler_Sclera_L','Morpher_FACE_Eye DownTurned Eye','Morpher_FACE_Eye Round','Morpher_FACE_Eye Thin','Morpher_FACE_Eye Almond Inner','Morpher_FACE_Eye Height Inner','Morpher_FACE_Eye Height Outer','Morpher_FACE_Eye Lacrimals Pinch']},
+  {id:'eyelid',l:'👁 Malha: Pálpebra (Eyelid)',ids:['Morpher_FACE_Eye Crows Feet','Morpher_FACE_Eyelid Heavy','Morpher_FACE_Eye Double eyelid type','Morpher_FACE_Eye Inner Depth']},
+  {id:'upper-eyelid',l:'↑ Malha: Pálpebra Superior (Upper Eyelid)',ids:['Morpher_FACE_Eyelid Smooth','Morpher_FACE_Eyelid Upper Height']},
+  {id:'lower-eyelid',l:'↓ Malha: Pálpebra Inferior (Lower Eyelid)',ids:['Morpher_FACE_Eyelid Bottom Define','Morpher_FACE_Eye Wrinkle Inner','Morpher_FACE_Eyelid Lower Height']},
+  {id:'upper-eye-area',l:'⬆ Malha: Área Superior do Olho (Upper Eye Area)',ids:['Morpher_FACE_Eyelid Top Flat','Morpher_FACE_Eyelid Top In Height']},
+  {id:'lower-eye-area',l:'⬇ Malha: Área Inferior do Olho (Lower Eye Area)',ids:['Morpher_FACE_Eyelid Bottom Out Height']},
+  {id:'lashes',l:'〜 Malha: Cílios (Eyelashes)',ids:['Morpher_FACE_Eye Lower Eyelashes Length','Morpher_FACE_Eye Upper Eyelashes Length']},
+  // ── MESH CHEEKS ──
+  {id:'upper-cheeks',l:'🫠 Malha: Bochechas Sup. (Upper Cheeks)',ids:['Morpher_FACE_Cheek Bones Bulge','Morpher_FACE_Cheek Bones Height','Morpher_FACE_Cheek Bones Size','Morpher_FACE_Cheek Depth']},
+  {id:'lower-cheeks',l:'😶 Malha: Bochechas Inf. (Lower Cheeks)',ids:['Morpher_FACE_Cheek Dimple Crease','Morpher_FACE_Cheek Mouth Sphincter','Morpher_FACE_Cheek Sink','Morpher_FACE_Crease Inner Cheek','Morpher_FACE_Crease Lower Cheek','Morpher_FACE_Cheek Face Flat']},
+  // ── MESH NOSE ──
+  {id:'nose',l:'👃 Malha: Nariz (Nose)',ids:['Scaler_Nariz_','Desplazador_Nariz_','Morpher_FACE_Nose Chisel Nose','Morpher_FACE_Nose Pinch']},
+  {id:'upper-nose',l:'👃 Malha: Nariz Superior (Upper Nose Area)',ids:['Morpher_FACE_Nose Bridge Flatten','Morpher_FACE_Nose Bridge Depth','Morpher_FACE_Nose Bridge Height','Morpher_FACE_Nose Ridge Width']},
+  {id:'mid-nose',l:'👃 Malha: Nariz Médio (Middle Nose Area)',ids:['Morpher_FACE_Nose Aquiline nose','Morpher_FACE_Nose Dorsal Hump','Morpher_FACE_Nose Bridge Skew','Morpher_FACE_Nose Bridge Slope','Morpher_FACE_Nose Ridge','Morpher_FACE_Nose Bump']},
+  {id:'lower-nose',l:'👃 Malha: Nariz Inferior (Lower Nose Area)',ids:['Morpher_FACE_Nose Scale','Morpher_FACE_Nose Twist']},
+  {id:'nose-tip',l:'👃 Malha: Ponta do Nariz (Nose Tip)',ids:['Morpher_FACE_Nose Flat','Morpher_FACE_Nose Tip Flat','Morpher_FACE_Nose Tip Round','Morpher_FACE_Nose Tip Depth','Morpher_FACE_Nose Tip Height','Morpher_FACE_Nose Tip Slope','Morpher_FACE_Nose Tip Tone','Morpher_FACE_Nose Tip Width']},
+  {id:'nostrils',l:'👃 Malha: Narinas (Nostrils)',ids:['Morpher_FACE_Nostril Depth n','Morpher_FACE_Nostril Angle','Morpher_FACE_Nostril Flesh Size','Morpher_FACE_Nostril Height','Morpher_FACE_Nostril Scale','Morpher_FACE_Nostril Type A','Morpher_FACE_Nostrils Width']},
+  {id:'columella',l:'👃 Malha: Columela (Columella)',ids:['Morpher_FACE_Nose Septum Depth','Morpher_FACE_Nose Philtrum Concave','Morpher_FACE_Nose Septum Height','Morpher_FACE_Nose Septum Width']},
+  // ── MESH MOUTH ──
+  {id:'mouth',l:'👄 Malha: Boca (Mouth)',ids:['Morpher_FACE_Mouth Angle','Morpher_FACE_Mouth Corner Of The Mouth','Morpher_FACE_Mouth Curves','Morpher_FACE_Mouth Width']},
+  {id:'lips',l:'💋 Malha: Lábios (Lips)',ids:['Morpher_FACE_Lips Heart','Morpher_FACE_Lip Edge Define','Morpher_FACE_Lip Tone']},
+  {id:'lips-groove',l:'💋 Malha: Sulco Lábios (Lips Groove)',ids:['Morpher_FACE_Lip Upper Lip Groove Depth','Morpher_FACE_Lip Upper Lip Groove Angle','Morpher_FACE_Lip Upper Lip Groove Tone','Morpher_FACE_Lip Upper Lip Groove Width']},
+  {id:'upper-lip',l:'💋 Malha: Lábio Superior (Upper Lip)',ids:['Morpher_FACE_Lip Upper Lip Middle Fill','Morpher_FACE_Lip Upper Size','Morpher_FACE_Lip Top Peak','Morpher_FACE_Lip Upper Curves']},
+  {id:'lower-lip',l:'💋 Malha: Lábio Inferior (Lower Lip)',ids:['Morpher_FACE_Lip Lower Depth','Morpher_FACE_Lip Lower Size','Morpher_FACE_Lip Lower Width']},
+  {id:'jaw',l:'🦷 Malha: Mandíbula (Jaw)',ids:['Morpher_FACE_Jaw Define','Morpher_FACE_Jaw Angle','Morpher_FACE_Jaw Corner Width','Morpher_FACE_Jaw Curve','Morpher_FACE_Jaw Line Depth','Morpher_FACE_Jaw Size']},
+  {id:'chin',l:'🦷 Malha: Queixo (Chin)',ids:['Morpher_FACE_Chin Cleft','Morpher_FACE_Sharp Chin','Morpher_FACE_Chin Crease','Morpher_FACE_Chin Depth','Morpher_FACE_Chin Length','Morpher_FACE_Chin Recede','Morpher_FACE_Chin Square','Morpher_FACE_Chin  Width']},
+  // ── MESH HAIR / TORZO / BREAST ──
+  {id:'hair',l:'💇 Malha: Cabelo (Hair)',ids:['Reemplazador_StyloDeCabello_','Scaler_CerdasDeCabello_','Scaler_RisosDeCabello_','Incrementador_FrequenciaRisosDeCabello_','Scaler_AxisDeRisosDeCabello_','Interpolador_Tip_']},
+  {id:'torzo',l:'🏋️ Malha: Torso (Torzo)',ids:['Scaler_Spine01_','Scaler_Spine02_']},
+  {id:'breast',l:'🫁 Malha: Seios (Breast)',ids:['Scaler_Seno_L','Scaler_Seno_R','DesplazadorAltura_Seno_L','DesplazadorAltura_Seno_R','DesplazadorLateral_Seno_L','DesplazadorLateral_Seno_R','RotadorHorizontal_Seno_L','RotadorHorizontal_Seno_R','RotadorVertical_Seno_L','RotadorVertical_Seno_R','Estirador_Pezones_L','Estirador_Pezones_R','Suavizador_Senos_L','Suavizador_Senos_R']},
+  {id:'nipples',l:'⭕ Malha: Mamilos (Nipples)',ids:['Scaler_Pezon_L','Scaler_Pezon_R','Scaler_SenosAureola_']},
+  // ── MESH ARMS / HANDS ──
+  {id:'arms1',l:'💪 Malha: Braços 1 (Arms 1)',ids:['Scaler_BrazoSuperior_L','Scaler_BrazoSuperior_R','Scaler_AnteBrazoSuperior_L','Scaler_AnteBrazoSuperior_R']},
+  {id:'arms2',l:'💪 Malha: Braços 2 (Arms 2)',ids:['Scaler_BrazoInferior_L','Scaler_BrazoInferior_R','Scaler_AnteBrazoInferior_L','Scaler_AnteBrazoInferior_R']},
+  {id:'hands',l:'✋ Malha: Mãos (Hands)',ids:['Scaler_Mano_L','Scaler_Mano_R']},
+  {id:'fingers',l:'☝️ Malha: Dedos (Fingers)',ids:['Desplazador_indice_L','Desplazador_indice_R','Desplazador_Corazon_L','Desplazador_Corazon_R','Desplazador_Angular_L','Desplazador_Angular_R','Desplazador_Meñique_L','Desplazador_Meñique_R']},
+  // ── MESH HIPS / ASS ──
+  {id:'hips',l:'🍑 Malha: Quadril (Hips)',ids:['Scaler_PelvisLat_L','Scaler_PelvisLat_R','Desplazador_PelvisLat_L','Desplazador_PelvisLat_R']},
+  {id:'ass1',l:'🍑 Malha: Glúteos 1 (Ass 1)',ids:['Scaler_Nalga_L','Scaler_Nalga_R','Desplazador_Nalga_L','Desplazador_Nalga_R','Suavizador_Nalga_L','Suavizador_Nalga_R','Disminuyente_RotacionNalga_R','Disminuyente_RotacionNalga_L']},
+  {id:'ass2',l:'🍑 Malha: Glúteos 2 (Ass 2)',ids:['Desplazador_GlutenAperture_L','Desplazador_GlutenAperture_R']},
+  // ── MESH ANUS / VAGINA ──
+  {id:'anus',l:'🔵 Malha: Ânus (Anus)',ids:['Scaler_Anus_','Desplazador_Anus_','Rotador_Anus_','Morpher_AnusConeccion_','Morpher_AnusIrregularidadA_','Morpher_AnusIrregularidadB_','Morpher_AnusIrregularidadC_','Morpher_AnusIrregularidadD_','Morpher_AnusArrugasA_','Morpher_AnusProfundidad_','Controller_AnusAperturaVirtual_']},
+  {id:'vag1',l:'⚥ Malha: Vagina 1 (Vagina 1)',ids:['Scaler_VagLabia_','Scaler_VagHole_','Scaler_BaseClitoris_','Scaler_PuntaClitoris_','Scaler_Uretra_','Controller_VagLabiaFirmesaR_','Controller_VagLabiaFirmesaL_','Controller_VagAperturaVirtual_','Rotador_Vag_']},
+  {id:'vag2',l:'⚥ Malha: Vagina 2 (Vagina 2)',ids:['Morpher_VagLavAnchoBajos_','Morpher_VagLavAnchoMedios_','Morpher_VagLavAnchoAltos_','Morpher_VagLavAnchoDentroBajos_','Morpher_VagLavAnchoDentroMedios_','Morpher_VagLavAnchoDentroAltos_','Morpher_VagLavIrregularidadA_','Morpher_VagLavIrregularidadB_','Morpher_VagLavIrregularidadC_','Morpher_VagLavAltura_','Morpher_VagLavAperturaL_','Morpher_VagLavAperturaR_','Morpher_VagHoleIrregularidadA_','Morpher_VagHoleIrregularidadB_','Morpher_VagHoleIrregularidadC_','Morpher_VagHoleAbierto_','Morpher_VagHoleCerrado_','Morpher_VagHoleContraste_']},
+  {id:'uterus',l:'🔬 Malha: Útero (Uterus)',adv:true,ids:['Scaler_UterusSize_','Morpher_Morpher_UterusThickness_','Morpher_CervixSize_','Morpher_CervixProy_','Controller_VagDesgaste_','Morpher_BirthCanalVFolds1_','Morpher_BirthCanalHFolds1_','Morpher_BirthCanalVFolds2_','Morpher_BirthCanalHFolds2_','Morpher_CanalCama_','Morpher_Canal000Ancho_','Morpher_Canal000Rot_','Morpher_Canal001Ancho_','Morpher_Canal001Rot_','Morpher_Canal002Ancho_','Morpher_Canal002Rot_','Morpher_Canal003Ancho_','Morpher_Canal003Rot_','Morpher_Canal004Ancho_','Morpher_Canal004Rot_','Morpher_Canal005Ancho_','Morpher_Canal005Rot_','Morpher_CapsulaPliegue1_','Morpher_CapsulaPliegue2_','Morpher_CapsulaPliegue3_','Morpher_CapsulaPliegue4_','Morpher_CapsulaPliegue5_','Morpher_CapsulaVar1_','Morpher_CapsulaVar2_','Morpher_CapsulaVar3_','Morpher_CapsulaAper_','Morpher_CervixVar1_','Morpher_CervixVar2_','Morpher_CervixVar3_','Morpher_CervixVar4_']},
+  {id:'intestines',l:'🔬 Malha: Intestinos (Intestines)',adv:true,ids:['Scaler_Intestines_','Controller_AnusDesgaste_','Morpher_IntestinesVar1_','Morpher_IntestinesVar2_','Morpher_IntestinesVar3_']},
+  // ── MESH LEGS ──
+  {id:'legs1',l:'🦵 Malha: Pernas 1 (Legs 1)',ids:['Scaler_PiernaSuperior_L','Scaler_PiernaSuperior_R','Scaler_CanillaSuperior_L','Scaler_CanillaSuperior_R','Scaler_Pie_L','Scaler_Pie_R']},
+  {id:'legs2',l:'🦵 Malha: Pernas 2 (Legs 2)',ids:['Desplazador_DePivotDePiernas_L','Desplazador_DePivotDePiernas_R','Scaler_PiernaInferior_L','Scaler_PiernaInferior_R','Scaler_CanillaInferior_L','Scaler_CanillaInferior_R']},
+  // ── MATERIALS ──
+  {id:'mat-body',l:'🎨 Materiais: Corpo (Materials: Body)',ids:['Textureador_MainPiel_','Coloreador_MainPiel_','Coloreador_NormalMainPiel_','Coloreador_OclusionMainPiel_','Coloreador_NormalSecondaryMainPiel_','Coloreador_BrilloMainPiel_']},
+  {id:'mat-head',l:'🎨 Materiais: Cabeça (Materials: Head)',ids:['Textureador_FacialDecals_','Textureador_Ceja_L','Textureador_Ceja_R','Textureador_EyeLashes_','Textureador_NormalLabios_','Coloreador_Labios_','Coloreador_Cejas_','Coloreador_EyeLashes_','Coloreador_Dientes_','Textureador_FacialDecalsAlpha_','Coloreador_NormalCejas_','Coloreador_NormalLabios_','Coloreador_NormalSecondaryLabios_','Coloreador_BrilloSecondaryLabios_']},
+  {id:'mat-hair',l:'🎨 Materiais: Cabelo (Materials: Hair)',ids:['Coloreador_StyloDeCabello_','Encojedor_CerdasDeCabello_','Coloreador_BrilloDeCabello_']},
+  {id:'mat-eyes',l:'🎨 Materiais: Olhos (Materials: Eyes)',ids:['Textureador_Iris_R','Textureador_Iris_L','Coloreador_Sclera_R','Coloreador_Sclera_L','Coloreador_Iris_R','Coloreador_Iris_L']},
+  {id:'mat-body2',l:'🎨 Materiais: Corpo 2 (Materials: Body 2)',ids:['Coloreador_FingerNails_','Coloreador_ToeNails_','Coloreador_Pubes_','Coloreador_Pezones_','Coloreador_Vag_','Coloreador_Ano_','Coloreador_NormalSecondaryPezones_','Coloreador_NormalSecondaryVag_','Coloreador_NormalSecondaryAnus_','Coloreador_BrilloSecondaryPezones_','Coloreador_BrilloSecondaryVag_','Coloreador_BrilloSecondaryAnus_','Textureador_Pubes_','Textureador_Pezones_','Textureador_BodyDecals_']},
+  {id:'mat-body3',l:'🎨 Materiais: Corpo 3 (Materials: Body 3)',ids:['Toggleador_Pubes_']},
+  // ── VIRTUALS ──
+  {id:'breathing',l:'💨 Virtuais: Respiração (Virtuals: Breathing)',ids:['Virtual_FreqToBocaExha_','Virtual_FreqToBocaInha_','Virtual_VolNasal_','Virtual_VolBocal_']},
+  {id:'sounds',l:'🔊 Virtuais: Sons (Virtuals: Sounds)',ids:['Virtual_PitchNasal_','Virtual_PitchVocal_','Virtual_ExpresionesSonidoTipo_']},
+];
+const PER_GROUPS=[
+  {id:'rasgo',l:'🧬 Traços de Personalidade',prefix:'Personalidad_Rasgo_'},
+  {id:'fisico',l:'💊 Físico e Sensações',ids:['Personalidad_TraitHumano_erogenidad','Personalidad_TraitHumano_bodyEndurance','Personalidad_TraitHumano_vagTightness','Personalidad_TraitHumano_anusTightness','Personalidad_TraitHumano_vagTightnessEndurance','Personalidad_TraitHumano_anusTightnessEndurance','Personalidad_TraitHumano_vagEndurance','Personalidad_TraitHumano_anusEndurance','Personalidad_TraitHumano_bocaTightness','Personalidad_TraitHumano_bocaTightnessEndurance','Personalidad_TraitHumano_bocaEndurance','Personalidad_TraitHumano_bodyHolesVirtualEndurance','Personalidad_TraitHumano_aguanteAlDolorPorPenetracion','Personalidad_TraitHumano_sensibilidadV2','Personalidad_TraitHumano_estadoFisico','Personalidad_TraitHumano_estadoFisicoEmociones']},
+  {id:'resposta',l:'❤️ Resposta Sexual e Orgasmo',ids:['Personalidad_TraitHumano_orgasmoDuracion','Personalidad_TraitHumano_orgasmoContraciones','Personalidad_TraitHumano_orgasmoReaccionDeAno','Personalidad_TraitHumano_orgasmoReaccionDeVagina','Personalidad_TraitHumano_orgasmoReaccionDeHips','Personalidad_TraitHumano_orgasmoReaccionDeGestoBoca','Personalidad_TraitHumano_orgasmoReaccionDeGestoOjos','Personalidad_TraitHumano_orgasmoReaccionDeArousal','Personalidad_TraitHumano_reaccionDeArousal','Personalidad_TraitHumano_orgasmoAumentoTempDeArousal','Personalidad_TraitHumano_orgasmoRecuperacionDeArousal']},
+  {id:'umidade',l:'💧 Umidade e Fluidos',ids:['Personalidad_TraitHumano_humedadFacial','Personalidad_TraitHumano_humedadCorporal','Personalidad_TraitHumano_humedadVaginal','Personalidad_TraitHumano_humedadAnal','Personalidad_TraitHumano_humedadVelocidad','Personalidad_TraitHumano_humedadPower','Personalidad_TraitHumano_sudorGrasoso','Personalidad_TraitHumano_mocosidad','Personalidad_TraitHumano_eyesResequedad']},
+  {id:'comportamento',l:'😶 Comportamento e Caráter',ids:['Personalidad_TraitHumano_verguenza','Personalidad_TraitHumano_curiosidad','Personalidad_TraitHumano_fijacion','Personalidad_TraitHumano_pudor','Personalidad_TraitHumano_rabiosa','Personalidad_TraitHumano_muecas','Personalidad_TraitHumano_expresividad','Personalidad_TraitHumano_mimicas','Personalidad_TraitHumano_sumisionVerval','Personalidad_TraitHumano_facilidadParaDesHielar','Personalidad_TraitHumano_estandaresAltos','Personalidad_TraitHumano_inteligencia','Personalidad_TraitHumano_pobreza']},
+  {id:'verbal',l:'🗣️ Comunicação e Respostas Verbais',ids:['Personalidad_TraitHumano_verbosidad','Personalidad_TraitHumano_verbosidadPublica','Personalidad_TraitHumano_verbosidadPrivada','Personalidad_TraitHumano_verbosidadNatural','Personalidad_TraitHumano_verbosidadNoNatural','Personalidad_TraitHumano_verbosidadPositiva','Personalidad_TraitHumano_verbosidadNegativa','Personalidad_TraitHumano_responcibidad','Personalidad_TraitHumano_responcibidadPublica','Personalidad_TraitHumano_responcibidadPrivada','Personalidad_TraitHumano_responcibidadNatural','Personalidad_TraitHumano_responcibidadNoNatural','Personalidad_TraitHumano_leGustaChupar','Personalidad_TraitHumano_chuparIntencidad','Personalidad_TraitHumano_gaggingIntencidad']},
+  {id:'gostos',l:'💖 Preferências e Gostos',ids:['Personalidad_TraitHumano_gustoPorNormales','Personalidad_TraitHumano_gustoPorTimidos','Personalidad_TraitHumano_gustoPorIntelectuales','Personalidad_TraitHumano_gustoPorPatanes','Personalidad_TraitHumano_gustoPorConfiados','Personalidad_TraitHumano_gustoPorPervertidos','Personalidad_TraitHumano_gustoPorAutistas','Personalidad_TraitHumano_gustoPorDinero','Personalidad_TraitHumano_gustoPorHumildad','Personalidad_TraitHumano_gustoPorGordos','Personalidad_TraitHumano_gustoPorViejos','Personalidad_TraitHumano_gustoPorDelgados','Personalidad_TraitHumano_gustoPorMusculosos','Personalidad_TraitHumano_gustoPorJovenes','Personalidad_TraitHumano_gustoPorAltos','Personalidad_TraitHumano_gustoPorBuenaPresencia','Personalidad_TraitHumano_gustoPorMujeres']},
+  {id:'trabalho',l:'💼 Modelagem e Trabalho',ids:['Personalidad_TraitHumano_gustoPorModelaje','Personalidad_TraitHumano_gustoPorModelajeHerotico','Personalidad_TraitHumano_gustoPorModelajeUnderwear','Personalidad_TraitHumano_gustoPorTratoDeClientes','Personalidad_TraitHumano_gustoPorTratoEspecialDeClientes','Personalidad_TraitHumano_gustoPorTratoExplicitoDeClientes','Personalidad_TraitHumano_leGustaHacerEjercicio','Personalidad_TraitHumano_leGustaHacerEjercicioNoNatural']},
+  {id:'desejos',l:'🌟 Desejos',ids:['Personalidad_TraitHumano_deseoGananciaPrimario','Personalidad_TraitHumano_deseoGananciaSegundario','Personalidad_TraitHumano_deseoGananciaTerciario','Personalidad_TraitHumano_deseoGananciaPorEstimulosPositivos','Personalidad_TraitHumano_deseoGananciaPorEstimulosNegativos','Personalidad_TraitHumano_deseosResiliance']},
+  {id:'paciencia',l:'⏳ Paciência e Resistência Emocional',ids:['Personalidad_TraitHumano_patience','Personalidad_TraitHumano_ragePatience','Personalidad_TraitHumano_painPatience','Personalidad_TraitHumano_deceptionPatience','Personalidad_TraitHumano_fearPatience','Personalidad_TraitHumano_maxEmocionValueEndurance','Personalidad_TraitHumano_maxRageValueEndurance','Personalidad_TraitHumano_maxPainValueEndurance','Personalidad_TraitHumano_maxDeceptionValueEndurance','Personalidad_TraitHumano_maxPlacerValueEndurance','Personalidad_TraitHumano_maxFearValueEndurance']},
+  {id:'consent',l:'✅ Consentimento por Preferências',prefix:'Personalidad_ConsentPorGustos_'},
+  {id:'desejos_ini',l:'💫 Desejos Iniciais',prefix:'Personalidad_Deseos'},
+  {id:'adv_grupo',l:'🔬 Grupos de Estímulo (Avançado)',prefix:'Personalidad_Grupo_',adv:true},
+  {id:'adv_umbral',l:'📉 Limiares de Resposta (Avançado)',prefix:'Personalidad_DatosDeUmbral_',adv:true},
+  {id:'adv_mods',l:'🔧 Mods por Emoção (Avançado)',prefix:'Personalidad_ModsDeInterSegunEmocion_',adv:true},
+  {id:'adv_gen',l:'⚡ Geração de Estímulo (Avançado)',prefix:'Personalidad_EstGen',adv:true},
+  {id:'adv_inc',l:'📈 Incrementos de Interação (Avançado)',prefix:'Personalidad_Inc_',adv:true},
+  {id:'adv_exp',l:'📊 Experiência de Interação (Avançado)',prefix:'Personalidad_Exp_',adv:true},
+  {id:'adv_concent',l:'🎯 Concentração Requerida (Avançado)',prefix:'Personalidad_ConcentRequerido_',adv:true},
+  {id:'adv_anim',l:'🎭 Animações (Avançado)',prefix:'Personalidad_Anim_',adv:true},
+  {id:'adv_max',l:'📐 Emoção Máxima (Avançado)',prefix:'Personalidad_MaxEmocion_',adv:true},
+];
+
+function renderTraits(type,traits,empId){
+  const traitMap={};traits.forEach(t=>traitMap[t.m_id]=t);
+  const groups=type==='ap'?AP_GROUPS:PER_GROUPS;
+  const container=el(type==='ap'?'ap-traits':'per-traits');
+  const prefix=type==='ap'?'ap':'per';
+  let html='';
+  const allGrouped=new Set();
+  groups.forEach(g=>{
+    let gt=[];
+    if(g.prefix)gt=traits.filter(t=>t.m_id.startsWith(g.prefix));
+    else if(g.ids)gt=g.ids.map(id=>traitMap[id]).filter(Boolean);
+    if(!gt.length)return;
+    gt.forEach(t=>allGrouped.add(t.m_id));
+    html+=`<details class="tg" ${g.adv?'':'open'}>
+      <summary>${g.l}<span class="tc">${gt.length}</span></summary>
+      <div class="tg-body" id="tg-${prefix}-${g.id}">
+        ${gt.map(t=>buildTF(t,type,empId)).join('')}
+      </div></details>`;
+  });
+  const rest=traits.filter(t=>!allGrouped.has(t.m_id));
+  if(rest.length){
+    html+=`<details class="tg"><summary>🗂️ Outros<span class="tc">${rest.length}</span></summary>
+      <div class="tg-body">${rest.map(t=>buildTF(t,type,empId)).join('')}</div></details>`;
+  }
+  container.innerHTML=html;
+}
+
+function buildTF(trait,type,empId){
+  const mods=getMods(trait);
+  const idxCount=parseInt(trait.m_data.values[trait.m_data.keys.indexOf('IndexCount')]||'0');
+  const isColor=trait.m_id.toLowerCase().includes('coloreador')&&mods.length>=3;
+  const isSel=(trait.m_id.includes('Reemplazador_')||trait.m_id.includes('Textureador_'))&&idxCount>0;
+  const label=getTL(trait.m_id);
+  const orig=trait.m_id.length>30?trait.m_id.substring(0,30)+'…':trait.m_id;
+  const lbl=`<div class="tf-lbl"><span>${label}</span><span class="tf-orig" title="${trait.m_id}">[${orig}]</span></div>`;
+  const scope=empId?`'${empId}'`:'null';
+  if(isColor){
+    const hex=hsvToHex(mods[0],mods[1],mods[2]);
+    return`<div class="tf" data-tid="${trait.m_id}">${lbl}
+      <div class="tf-color"><input type="color" value="${hex}"
+        oninput="onColorTrait(${scope},'${type}','${trait.m_id}',this.value)"></div></div>`;
+  }
+  if(isSel){
+    const cur=Math.round(mods[0]*(idxCount-1));
+    return`<div class="tf" data-tid="${trait.m_id}">${lbl}
+      <div class="tf-ctrl"><input type="number" style="width:70px" min="0" max="${idxCount-1}" step="1" value="${cur}"
+        oninput="onSelectorTrait(${scope},'${type}','${trait.m_id}',this.value,${idxCount})">
+        <span style="font-size:10px;color:var(--muted)">/ ${idxCount-1}</span></div></div>`;
+  }
+  let sliders='';
+  // Determine axis labels based on trait type and count
+  const isPos=trait.m_id.includes('Desplazador_');
+  const isNalga=trait.m_id.includes('Nalga_');
+  const isColor4=trait.m_id.toLowerCase().includes('coloreador')&&mods.length===4;
+  function getAxisLabel(idx,total){
+    if(isNalga&&total===4)return['Overall','X','Y','Z'][idx]||`Valor ${idx}`;
+    if(isPos&&total===3)return['X','Y','Z'][idx]||`Valor ${idx}`;
+    if(isPos&&total===2)return['X','Y'][idx]||`Valor ${idx}`;
+    if(isColor4&&total===4)return['Valor','Valor 1','Valor 2','Valor 3'][idx];
+    if(total===1)return'Valor';
+    return idx===0?'Valor':`Valor ${idx}`;
+  }
+  mods.forEach((v,idx)=>{
+    const uid=`t_${type}_${trait.m_id.replace(/[^a-z0-9]/gi,'_')}_${idx}`;
+    const axLbl=getAxisLabel(idx,mods.length);
+    sliders+=`<div class="tf-ctrl">
+      <span style="font-size:9px;color:var(--muted2);width:44px;flex-shrink:0">${axLbl}</span>
+      <input type="range" min="0" max="1" step="0.001" id="${uid}_r" value="${Math.min(1,Math.max(0,v))}"
+        oninput="onSliderTrait(${scope},'${type}','${trait.m_id}',${idx},this.value);document.getElementById('${uid}_n').value=parseFloat(this.value).toFixed(3)">
+      <input type="number" class="rnum" id="${uid}_n" min="0" max="1" step="0.001" value="${parseFloat(v).toFixed(3)}"
+        oninput="onSliderTrait(${scope},'${type}','${trait.m_id}',${idx},this.value);document.getElementById('${uid}_r').value=Math.min(1,Math.max(0,this.value))">
+    </div>`;
+  });
+  return`<div class="tf" data-tid="${trait.m_id}">${lbl}${sliders}</div>`;
+}
+
+function getTraitNode(empId,type,traitId){
+  if(empId){
+    const node=type==='ap'?getEmpAp(empId):getEmpPer(empId);
+    return node&&findChild(node,traitId);
+  }else{
+    // PNG standalone
+    const root=PNG_DATA;if(!root)return null;
+    const section=findChild(root,type==='ap'?'AparienciaFisica':'Personalidad');
+    if(!section||!section.m_children.length)return null;
+    return findChild(section.m_children[0],traitId);
+  }
+}
+
+function onSliderTrait(empId,type,tid,idx,val){
+  const t=getTraitNode(empId,type,tid);if(t)setModIdx(t,idx,val);
+}
+function onColorTrait(empId,type,tid,hex){
+  const t=getTraitNode(empId,type,tid);if(!t)return;
+  const [h,s,v]=hexToHsv(hex);
+  const i=t.m_data.keys.indexOf('Mods');if(i<0)return;
+  try{const m=JSON.parse(t.m_data.values[i]);m.c[0]=h;m.c[1]=s;m.c[2]=v;t.m_data.values[i]=JSON.stringify(m)}catch{}
+}
+function onSelectorTrait(empId,type,tid,val,cnt){
+  const t=getTraitNode(empId,type,tid);if(!t)return;
+  setModIdx(t,0,parseInt(val)/Math.max(1,cnt-1));
+}
+
+function filterT(prefix,q){
+  const ap=prefix.includes('ap');
+  const containerId=prefix==='ap'?'ap-traits':prefix==='per'?'per-traits':prefix==='png-ap'?'png-ap-traits':'png-per-traits';
+  const container=el(containerId);if(!container)return;
+  const lq=q.toLowerCase().trim();
+  container.querySelectorAll('.tf').forEach(tf=>{
+    if(!lq){tf.style.display='';return}
+    const tid=(tf.dataset.tid||'').toLowerCase();
+    const lbl=(tf.querySelector('.tf-lbl span')?.textContent||'').toLowerCase();
+    tf.style.display=(tid.includes(lq)||lbl.includes(lq))?'':'none';
+  });
+  container.querySelectorAll('.tg').forEach(tg=>{
+    if(!lq){tg.style.display='';return}
+    const vis=[...tg.querySelectorAll('.tf')].some(t=>t.style.display!=='none');
+    tg.style.display=vis?'':'none';
+    if(vis)tg.open=true;
+  });
+}
+
+// ══════════════════════════════
+//  PRESETS
+// ══════════════════════════════
+function renderPresets(type,presets,empId){
+  const containerId=empId?`${type}-presets`:`png-${type}-presets`;
+  const c=el(containerId);if(!c)return;
+  c.innerHTML=presets.map(p=>`<div class="preset-card" onclick="applyPreset('${type}','${p.id}','${empId||''}')">
+    <div class="preset-name">${p.name}${p.beta?'<span class="badge beta" style="margin-left:6px">BETA</span>':''}</div>
+    <div class="preset-desc">${p.desc}</div>
+  </div>`).join('');
+}
+
+function applyPreset(type,presetId,empId){
+  const presets=type==='ap'?AP_PRESETS:PER_PRESETS;
+  const preset=presets.find(p=>p.id===presetId);if(!preset)return;
+  let node=null;
+  if(empId){node=type==='ap'?getEmpAp(empId):getEmpPer(empId);}
+  else{const root=PNG_DATA;const sec=root&&findChild(root,type==='ap'?'AparienciaFisica':'Personalidad');node=sec&&sec.m_children[0];}
+  if(!node){toast('Carregue um arquivo primeiro','err');return}
+  Object.entries(preset.traits).forEach(([tid,vals])=>{
+    const t=findChild(node,tid);
+    if(t){const i=t.m_data.keys.indexOf('Mods');if(i>=0){try{const m=JSON.parse(t.m_data.values[i]);m.c=vals.map(v=>parseFloat(v));t.m_data.values[i]=JSON.stringify(m)}catch{}}}
+  });
+  // Re-render
+  if(empId){if(type==='ap')renderTraits('ap',getEmpAp(empId).m_children,empId);else renderTraits('per',getEmpPer(empId).m_children.filter(t=>t.m_id!=='referencias'),empId);}
+  else{renderPNGTraits();}
+  toast(`Preset "${preset.name}" aplicado!`,'ok');
+}
+
+function exportProfile(type){
+  if(!SEL_EMP)return;
+  const node=type==='ap'?getEmpAp(SEL_EMP):getEmpPer(SEL_EMP);if(!node)return;
+  const data=JSON.stringify({type,m_id:node.m_id,m_data:node.m_data,m_children:node.m_children});
+  const blob=new Blob([data],{type:'application/json'});
+  const npc=getNPCById(SEL_EMP);const nome=(gv(npc,'Nombre')||'model')+'_'+type+'_profile.json';
+  dl(blob,nome);toast('Perfil exportado!','ok');
+}
+
+// ══════════════════════════════
+//  PNG IMPORT / EXPORT
+// ══════════════════════════════
+const PNG_MARKER_STR='TValle.Character.Data:';
+
+async function loadPNGStandalone(file){
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const marker=(new TextEncoder()).encode(PNG_MARKER_STR);
+    let mpos=-1;
+    outer:for(let i=0;i<=bytes.length-marker.length;i++){for(let j=0;j<marker.length;j++)if(bytes[i+j]!==marker[j])continue outer;mpos=i;break;}
+    if(mpos<0){toast('Marcador TValle.Character.Data: não encontrado','err');return}
+    PNG_BYTES=bytes.slice(0,mpos);
+    const dataBytes=bytes.slice(mpos+marker.length);
+    let jsonText;
+    // Try gzip first, then raw JSON
+    try{jsonText=pako.ungzip(dataBytes,{to:'string'})}
+    catch{jsonText=new TextDecoder().decode(dataBytes)}
+    PNG_DATA=JSON.parse(jsonText);
+    // Show preview
+    const blob=new Blob([PNG_BYTES],{type:'image/png'});
+    const url=URL.createObjectURL(blob);
+    const npcNode=findChild(PNG_DATA,'NPC');
+    const npc=npcNode&&npcNode.m_children&&npcNode.m_children[0];
+    const nome=npc?((gv(npc,'Nombre')||'')+' '+(gv(npc,'Apellido')||'')).trim():'Desconhecido';
+    el('png-preview-card').style.display='';
+    el('png-model-info').innerHTML=`<img src="${url}" class="png-prev"><div style="font-weight:600;font-size:16px;margin-bottom:4px">${nome}</div><div style="font-size:11px;color:var(--muted)">${file.name}</div>`;
+    if(SD)el('btn-import-to-save').style.display='';
+    el('png-editor').style.display='';
+    renderPNGTraits();
+    setHdrStatus(`✅ ${nome} (PNG)`,'ok','png');
+    go('modelo-png');toast('Modelo carregada!','ok');
+  }catch(e){toast('Erro ao ler PNG: '+e.message,'err');console.error(e)}
+}
+
+function renderPNGTraits(){
+  if(!PNG_DATA)return;
+  const apSec=findChild(PNG_DATA,'AparienciaFisica');
+  const perSec=findChild(PNG_DATA,'Personalidad');
+  const ap=apSec&&apSec.m_children[0];
+  const per=perSec&&perSec.m_children[0];
+  if(ap)renderTraitsForContainer('png-ap-traits',ap.m_children,'ap',null);
+  if(per)renderTraitsForContainer('png-per-traits',per.m_children.filter(t=>t.m_id!=='referencias'),'per',null);
+  renderPresets('ap',AP_PRESETS,null);
+  renderPresets('per',PER_PRESETS,null);
+}
+
+function renderTraitsForContainer(containerId,traits,type,empId){
+  const c=el(containerId);if(!c)return;
+  const traitMap={};traits.forEach(t=>traitMap[t.m_id]=t);
+  const groups=type==='ap'?AP_GROUPS:PER_GROUPS;
+  let html='';
+  const allGrouped=new Set();
+  groups.forEach(g=>{
+    let gt=[];
+    if(g.prefix)gt=traits.filter(t=>t.m_id.startsWith(g.prefix));
+    else if(g.ids)gt=g.ids.map(id=>traitMap[id]).filter(Boolean);
+    if(!gt.length)return;
+    gt.forEach(t=>allGrouped.add(t.m_id));
+    html+=`<details class="tg" ${g.adv?'':'open'}><summary>${g.l}<span class="tc">${gt.length}</span></summary>
+      <div class="tg-body">${gt.map(t=>buildTF(t,type,empId)).join('')}</div></details>`;
+  });
+  const rest=traits.filter(t=>!allGrouped.has(t.m_id));
+  if(rest.length)html+=`<details class="tg"><summary>🗂️ Outros<span class="tc">${rest.length}</span></summary><div class="tg-body">${rest.map(t=>buildTF(t,type,empId)).join('')}</div></details>`;
+  c.innerHTML=html;
+}
+
+function downloadPNG(){
+  if(!PNG_DATA||!PNG_BYTES){toast('Nenhum PNG carregado','err');return}
+  try{
+    const marker=(new TextEncoder()).encode(PNG_MARKER_STR);
+    // Save as RAW JSON (not gzipped) to match newer game format
+    const jsonBytes=new TextEncoder().encode(JSON.stringify(PNG_DATA));
+    const combined=new Uint8Array(PNG_BYTES.length+marker.length+jsonBytes.length);
+    combined.set(PNG_BYTES,0);combined.set(marker,PNG_BYTES.length);combined.set(jsonBytes,PNG_BYTES.length+marker.length);
+    const npcNode=findChild(PNG_DATA,'NPC');const npc=npcNode&&npcNode.m_children&&npcNode.m_children[0];
+    const nome=npc?((gv(npc,'Nombre')||'Model')+' '+(gv(npc,'Apellido')||'')).trim():'Model';
+    dl(new Blob([combined],{type:'image/png'}),nome+'.png');
+    toast('PNG salvo!','ok');
+  }catch(e){toast('Erro: '+e.message,'err')}
+}
+
+function importPNGToSave(){
+  if(!PNG_DATA||!SD){toast('Carregue um save e um PNG primeiro','err');return}
+  try{
+    const srcNPC=findChild(PNG_DATA,'NPC');
+    if(!srcNPC||!srcNPC.m_children.length){toast('Sem dados NPC no PNG','err');return}
+    const srcEmp=srcNPC.m_children[0];
+    const srcAp=findChild(PNG_DATA,'AparienciaFisica');
+    const srcPer=findChild(PNG_DATA,'Personalidad');
+    const origApId=gv(srcEmp,'AparienciaFisica');
+    const origPerId=gv(srcEmp,'Personalidad');
+    // Generate new UUID for the NPC (avoid collision)
+    const newId=generateUUID();
+    const newApId=generateUUID();
+    const newPerId=generateUUID();
+    // Deep clone NPC (avoid circular refs by using JSON parse/stringify on primitives only)
+    const cloneEmp=deepCloneNode(srcEmp);
+    cloneEmp.m_id=newId;
+    sv(cloneEmp,'AparienciaFisica',newApId);
+    sv(cloneEmp,'Personalidad',newPerId);
+    // Set portrait from PNG bytes
+    if(PNG_BYTES){const b64=uint8ToB64(PNG_BYTES);sv(cloneEmp,'Portrait',b64)}
+    // Add referencias if not present
+    if(!findChild(cloneEmp,'referencias')){
+      let mem=findChild(cloneEmp,'Memorias');
+      if(!mem){cloneEmp.m_children.push({m_id:'Memorias',m_data:{keys:[],values:[]},m_children:[]}); mem=cloneEmp.m_children[cloneEmp.m_children.length-1]}
+      mem.m_children.push({m_id:'referencias',m_data:{keys:['IsHired'],values:['ByPlayer']},m_children:[]});
+    }
+    findChild(SD,'NPC').m_children.push(cloneEmp);
+    // AP
+    const apRoot=findChild(SD,'AparienciaFisica');
+    if(apRoot&&srcAp){
+      const srcApNode=findChild(srcAp,origApId)||srcAp.m_children[0];
+      if(srcApNode){const c=deepCloneNode(srcApNode);c.m_id=newApId;sv(c,'belongToNPC',newId);apRoot.m_children.push(c)}
+    }
+    // PER
+    const perRoot=findChild(SD,'Personalidad');
+    if(perRoot&&srcPer){
+      const srcPerNode=findChild(srcPer,origPerId)||srcPer.m_children[0];
+      if(srcPerNode){const c=deepCloneNode(srcPerNode);c.m_id=newPerId;sv(c,'belongToNPC',newId);perRoot.m_children.push(c)}
+    }
+    // Add to Hired
+    const hired=findChild(SD,'Hired');
+    if(hired)hired.m_children.push({m_id:newId,m_data:{keys:['Salary','Commission'],values:['5000','50']},m_children:[]});
+    renderModelos();
+    toast('Modelo importada para o save! Salve o arquivo.','ok');
+  }catch(e){toast('Erro ao importar: '+e.message,'err');console.error(e)}
+}
+
+function exportModelPNG(empId){
+  if(!SD)return;
+  try{
+    const emp=getNPCById(empId);if(!emp)return;
+    const apNode=getEmpAp(empId);const perNode=getEmpPer(empId);
+    const apId=gv(emp,'AparienciaFisica');const perId=gv(emp,'Personalidad');
+    const exportObj={m_id:'root',m_data:{keys:[],values:[]},m_children:[
+      {m_id:'NPC',m_data:{keys:[],values:[]},m_children:[deepCloneNode(emp)]},
+      apNode?{m_id:'AparienciaFisica',m_data:{keys:[],values:[]},m_children:[deepCloneNode(apNode)]}:null,
+      perNode?{m_id:'Personalidad',m_data:{keys:[],values:[]},m_children:[deepCloneNode(perNode)]}:null,
+    ].filter(Boolean)};
+    const marker=(new TextEncoder()).encode(PNG_MARKER_STR);
+    const jsonBytes=new TextEncoder().encode(JSON.stringify(exportObj));
+    const portrait=gv(emp,'Portrait');
+    let pngHeader;
+    if(portrait){const bin=atob(portrait);pngHeader=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)pngHeader[i]=bin.charCodeAt(i);}
+    else{pngHeader=new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,2,0,0,0,144,119,83,222,0,0,0,12,73,68,65,84,8,215,99,248,207,192,0,0,0,2,0,1,231,31,90,32,0,0,0,0,73,69,78,68,174,66,96,130]);}
+    const combined=new Uint8Array(pngHeader.length+marker.length+jsonBytes.length);
+    combined.set(pngHeader,0);combined.set(marker,pngHeader.length);combined.set(jsonBytes,pngHeader.length+marker.length);
+    const nome=((gv(emp,'Nombre')||'Model')+' '+(gv(emp,'Apellido')||'')).trim();
+    dl(new Blob([combined],{type:'image/png'}),nome+'.png');
+    toast(`PNG exportado: ${nome}.png`,'ok');
+  }catch(e){toast('Erro ao exportar PNG: '+e.message,'err');console.error(e)}
+}
+
+// Deep clone node without circular reference issues
+function deepCloneNode(node){
+  return{m_id:node.m_id,m_data:{keys:[...node.m_data.keys],values:[...node.m_data.values]},m_children:node.m_children.map(deepCloneNode)};
+}
+
+function uint8ToB64(bytes){
+  let s='';const chunk=8192;
+  for(let i=0;i<bytes.length;i+=chunk)s+=String.fromCharCode(...bytes.subarray(i,i+chunk));
+  return btoa(s);
+}
+
+// ══════════════════════════════
+//  COLOR UTILS
+// ══════════════════════════════
+function hsvToHex(h,s,v){let r,g,b;const i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q}return'#'+[r,g,b].map(x=>Math.round(Math.min(1,Math.max(0,x))*255).toString(16).padStart(2,'0')).join('')}
+function hexToHsv(hex){let r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;let h=0,s=max===0?0:d/max,vv=max;if(d!==0){if(max===r)h=((g-b)/d+6)%6;else if(max===g)h=(b-r)/d+2;else h=(r-g)/d+4;h/=6}return[h,s,vv]}
+
+// ══════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════
+function go(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  const s=el('sec-'+id);if(s)s.classList.add('active');
+  const a=document.querySelector(`nav a[data-s="${id}"]`);if(a)a.classList.add('active');
+}
+function stab(ctx,tab){
+  document.querySelectorAll(`.tp[data-tp^="${ctx}-"]`).forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll(`.tp[data-tp="${ctx}-${tab}"]`).forEach(p=>p.classList.add('active'));
+  document.querySelectorAll('.tab').forEach(t=>{if(t.getAttribute('onclick')&&t.getAttribute('onclick').includes(`'${ctx}','${tab}'`))t.classList.add('active');else if(t.getAttribute('onclick')&&t.getAttribute('onclick').includes(`'${ctx}',`))t.classList.remove('active')});
+}
+
+// ══════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════
+function dzOver(e,id){e.preventDefault();el(id)&&el(id).classList.add('over')}
+function dzLeave(id){el(id)&&el(id).classList.remove('over')}
+function dzDrop(e,type){
+  e.preventDefault();
+  const id='dz-'+(type==='sav'?'sav':type==='png'?'png':'png2');
+  el(id)&&el(id).classList.remove('over');
+  const file=e.dataTransfer.files[0];
+  if(!file)return;
+  if(type==='sav')loadSav(file);
+  else loadPNGStandalone(file);
+}
+// Global drag/drop on body for save files
+document.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files'))e.preventDefault()});
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  const file=e.dataTransfer.files[0];if(!file)return;
+  if(file.name.endsWith('.sav'))loadSav(file);
+  else if(file.name.endsWith('.png'))loadPNGStandalone(file);
+});
+
+// ══════════════════════════════
+//  TOAST & MISC
+// ══════════════════════════════
+function toast(msg,type='info'){
+  const t=el('toast');const d=document.createElement('div');d.className='tmsg '+type;d.textContent=msg;t.appendChild(d);
+  setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s'},2500);setTimeout(()=>d.remove(),2900);
+}
+function generateUUID(){return'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)})}
+</script>
+</body>
+</html>
